@@ -1,6 +1,6 @@
 ﻿using Orleans;
 
-namespace Silo
+namespace Application
 {
     public class HelloGrain : Grain, IHelloGrain
     {

@@ -1,6 +1,6 @@
 ﻿using Orleans;
 
-namespace Silo
+namespace Application
 {
     public interface IHelloGrain : IGrainWithStringKey
     {
