@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-namespace TokenCredentialDF
+namespace ConnectionTest
 {
     using System;
     using System.IO;
@@ -15,6 +15,7 @@ namespace TokenCredentialDF
     using System.Net.Http;
     using System.Diagnostics;
     using ConnectionTest;
+    using ConnectionTest.Algorithm;
 
     public static class Hello
     {
