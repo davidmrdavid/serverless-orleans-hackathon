@@ -1,12 +1,15 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using Application;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Hosting;
-
+using Orleans.TestingHost.InMemoryTransport;
 
 // To test the membership protocol, we start two silos on this machine, but using different ports
 
+var transportHub = new InMemoryTransportConnectionHub();
 using var host1 = new HostBuilder()
     .UseOrleans(builder => builder
         .Configure<ClusterOptions>(options =>
@@ -14,24 +17,29 @@ using var host1 = new HostBuilder()
             options.ClusterId = "my-first-cluster";
             options.ServiceId = "MyAwesomeOrleansService";
         })
-        .ConfigureEndpoints(siloPort: 11111, gatewayPort: 0)
+        .ConfigureEndpoints(siloPort: 11113, gatewayPort: 0)
+        .UseInMemoryConnectionTransport(transportHub)
         .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
         .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
     )
     .Build();
 
 using var host2 = new HostBuilder()
-    .UseOrleans(builder => builder
-        .Configure<ClusterOptions>(options =>
-        {
-            options.ClusterId = "my-first-cluster";
-            options.ServiceId = "MyAwesomeOrleansService";
-        })
-        .ConfigureEndpoints(siloPort: 11112, gatewayPort: 0)
-        .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
-        .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
+    .UseOrleans(builder => {
+        builder
+            .Configure<ClusterOptions>(options =>
+            {
+                options.ClusterId = "my-first-cluster";
+                options.ServiceId = "MyAwesomeOrleansService";
+            })
+            .ConfigureEndpoints(siloPort: 11114, gatewayPort: 0)
+            .UseInMemoryConnectionTransport(transportHub)
+            .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
+            .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences());
+        }
     )
     .Build();
+
 
 
 // Start the host
@@ -45,6 +53,7 @@ var friend = grainFactory.GetGrain<Application.IHelloGrain>("friend");
 
 // Call the grain and print the result to the console
 var result = await friend.SayHello("Good morning!");
+
 Console.WriteLine("\n\n{0}\n\n", result);
 
 Console.WriteLine("Orleans is running.\nPress Enter to terminate...");
