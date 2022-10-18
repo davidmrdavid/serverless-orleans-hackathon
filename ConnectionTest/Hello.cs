@@ -15,6 +15,7 @@ namespace TokenCredentialDF
     using System.Net.Http;
     using System.Diagnostics;
     using ConnectionTest;
+    using ConnectionTest.Algorithm;
 
     public static class Hello
     {
