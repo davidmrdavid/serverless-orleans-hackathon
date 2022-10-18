@@ -1,7 +1,7 @@
 // Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-namespace TokenCredentialDF
+namespace ConnectionTest
 {
     using System;
     using System.IO;
@@ -17,7 +17,7 @@ namespace TokenCredentialDF
 
     public static class HttpTriggers
     {
-        readonly static HttpClient client = new HttpClient();
+        internal readonly static HttpClient Client = new HttpClient();
 
         // call this function as follows from command line:
         // curl http://localhost:7195/test/10
@@ -67,7 +67,7 @@ namespace TokenCredentialDF
 
             string url = await req.Content.ReadAsStringAsync();
 
-            var stream = await client.GetStreamAsync(url);
+            var stream = await Client.GetStreamAsync(url);
 
             using (var reader = new StreamReader(stream))
             {
