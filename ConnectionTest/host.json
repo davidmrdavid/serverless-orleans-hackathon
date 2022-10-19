@@ -1,5 +1,11 @@
 {
   "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "Function.ConnectionTest": "Warning",
+      "Function.ConnectionTest.User": "Information"
+    }
+  },
   "extensions": {
     "http": {
       "routePrefix": ""
