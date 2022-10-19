@@ -5,9 +5,21 @@ using Microsoft.Extensions.Options;
 using Orleans;
 using Orleans.Configuration;
 using Orleans.Hosting;
+using Orleans.Runtime.Development;
 using Orleans.TestingHost.InMemoryTransport;
 
 // To test the membership protocol, we start two silos on this machine, but using different ports
+
+
+// pretend stream1 is the stream from Host1, and similarly for stream2 and Host2
+var stream1 = new MemoryStream();
+var stream2 = new MemoryStream();
+
+// the connection manager is a user-managed object (i.e the Function will create and manage it) that
+// Orleans uses to request connection streams.
+StreamConnectionManager connManager1 = new(stream1, stream2); // 1st argument represents local stream, 2nd is target stream
+StreamConnectionManager connManager2 = new(stream2, stream1); 
+
 
 var transportHub = new InMemoryTransportConnectionHub();
 using var host1 = new HostBuilder()
@@ -18,7 +30,7 @@ using var host1 = new HostBuilder()
             options.ServiceId = "MyAwesomeOrleansService";
         })
         .ConfigureEndpoints(siloPort: 11113, gatewayPort: 0)
-        .UseInMemoryConnectionTransport(transportHub)
+        .UseInMemoryConnectionTransport(transportHub, connManager1) // for now, we're ignoring the connectionManager. Just passing it for convenience.
         .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
         .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
     )
@@ -33,10 +45,10 @@ using var host2 = new HostBuilder()
                 options.ServiceId = "MyAwesomeOrleansService";
             })
             .ConfigureEndpoints(siloPort: 11114, gatewayPort: 0)
-            .UseInMemoryConnectionTransport(transportHub)
+            .UseInMemoryConnectionTransport(transportHub, connManager2)
             .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
             .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences());
-        }
+    }
     )
     .Build();
 
