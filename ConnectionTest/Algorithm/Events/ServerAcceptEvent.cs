@@ -15,7 +15,7 @@ namespace ConnectionTest.Algorithm
 
     internal class ServerAcceptEvent : DispatcherEvent
     {
-        public TaskCompletionSource<Connection> Response { get; set; }
+        public TaskCompletionSource<Connection> Response;
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
@@ -35,7 +35,23 @@ namespace ConnectionTest.Algorithm
 
                 dispatcher.InConnections.Add(connection.ConnectionId, connection);
 
-                await Format.SendAsync(connection.OutChannel.Stream, Format.Op.ConnectSuccess, connection.ConnectionId);
+                try
+                {
+                    await Format.SendAsync(
+                        connection.OutChannel.Stream,
+                        serverConnectEvent.DoClientBroadcast ? Format.Op.AcceptAndSolicit : Format.Op.Accept,
+                        connection.ConnectionId);
+                }
+                catch (Exception exception)
+                {
+                    dispatcher.Logger.LogWarning("{dispatcher} could not send Accept message: {exception}", dispatcher, exception);
+
+                    // retry this accept
+                    dispatcher.Worker.Submit(this);
+
+                    // we have to tear the connection down.
+                    dispatcher.Worker.Submit(new ConnectionFailedEvent() { ConnectionId = connection.ConnectionId });
+                }
 
                 this.Response.SetResult(connection);
             }

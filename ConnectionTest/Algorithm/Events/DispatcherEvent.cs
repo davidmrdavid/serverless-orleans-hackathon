@@ -19,5 +19,7 @@ namespace ConnectionTest.Algorithm
                 dispatcher.Worker.Submit(this);
             }
         }
+
+        public virtual bool CancelWithConnection(Guid connectionId) => false;
     }
 }

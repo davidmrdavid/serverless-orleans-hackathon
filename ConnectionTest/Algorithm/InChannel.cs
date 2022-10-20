@@ -10,20 +10,15 @@ namespace ConnectionTest.Algorithm
     using System.Net.Http;
     using System.Threading.Tasks;
 
-    public class InChannel
+    public class InChannel : Channel
     {
-        public string DispatcherId;
-
-        public Stream Stream;
-
-        public Guid ConnectionId;
-
         internal static async Task ReceiveAsync(Dispatcher dispatcher, Task<Stream> streamTask)
         {
             try
             {
+                var stream = await streamTask;
                 var channel = new InChannel();
-                channel.Stream = await streamTask;
+                channel.Stream = new StreamWrapper(stream, dispatcher, channel);
 
                 if (channel.Stream.GetType().Name == "EmptyReadStream")
                 {
@@ -43,36 +38,30 @@ namespace ConnectionTest.Algorithm
 
                 while (!dispatcher.HostShutdownToken.IsCancellationRequested)
                 {
-                    (Format.Op op, channel.ConnectionId) = await Format.ReceiveAsync(channel.Stream, dispatcher.HostShutdownToken);
+                    (Format.Op op, Guid connectionId) = await Format.ReceiveAsync(channel.Stream, dispatcher.HostShutdownToken);
 
                     switch (op)
                     {
-                        case Format.Op.TryConnect:
-
+                        case Format.Op.Connect:
+                        case Format.Op.ConnectAndSolicit:
+                            channel.ConnectionId = connectionId;
                             dispatcher.Worker.Submit(new ServerConnectEvent()
                             {
                                 ConnectionId = channel.ConnectionId,
                                 InChannel = channel,
+                                DoServerBroadcast = (op == Format.Op.ConnectAndSolicit),
                             });
                             // now streaming data from client to server
                             return;
 
-                        case Format.Op.ConnectFail:
+                        case Format.Op.Accept:
+                        case Format.Op.AcceptAndSolicit:
+                            channel.ConnectionId = connectionId;
                             dispatcher.Worker.Submit(new ClientAcceptEvent()
                             {
                                 ConnectionId = channel.ConnectionId,
                                 InChannel = channel,
-                                Success = false,
-                            });
-                            // we continue listening since the channel is not "used up" after sending this message
-                            break;
-
-                        case Format.Op.ConnectSuccess:
-                            dispatcher.Worker.Submit(new ClientAcceptEvent()
-                            {
-                                ConnectionId = channel.ConnectionId,
-                                InChannel = channel,
-                                Success = true,
+                                DoClientBroadcast = (op == Format.Op.AcceptAndSolicit),
                             });
                             // now streaming data from server to client
                             return;
@@ -80,12 +69,31 @@ namespace ConnectionTest.Algorithm
                         case Format.Op.Closed:
                             // now closed (without ever being used)
                             return;
+
+                        case Format.Op.ChannelFailed:
+                            dispatcher.Worker.Submit(new ConnectionFailedEvent()
+                            {
+                                ConnectionId = connectionId,
+                            });
+                            // we can continue listening on this stream
+                            break;
                     }
                 }
             }
             catch (Exception exception)
             {
                 dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception in ListenAsync: {exception}", dispatcher.DispatcherId, exception);
+            }
+        }
+
+        public override void Dispose()
+        {
+            try
+            {
+                this.Stream.Dispose();
+            }
+            catch
+            {
             }
         }
     }

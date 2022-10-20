@@ -15,35 +15,31 @@ namespace ConnectionTest.Algorithm
     internal class ClientAcceptEvent : DispatcherEvent
     {
         public Guid ConnectionId;
-
         public InChannel InChannel;
-
-        public bool Success;
+        public bool DoClientBroadcast;
 
         public override ValueTask ProcessAsync(Dispatcher dispatcher)
         {
             if (dispatcher.ConnectRequests.TryGetValue(this.ConnectionId, out var request))
             {
-                if (this.Success)
+                var connection = new Connection()
                 {
-                    var connection = new Connection()
-                    {
-                        ConnectionId = this.ConnectionId,
-                        InChannel = this.InChannel,
-                        OutChannel = request.OutChannel,
-                        IsServerSide = false,
-                    };
+                    ConnectionId = this.ConnectionId,
+                    InChannel = this.InChannel,
+                    OutChannel = request.OutChannel,
+                    IsServerSide = false,
+                };
 
-                    dispatcher.OutConnections.Add(this.ConnectionId, connection);
+                dispatcher.OutConnections.Add(this.ConnectionId, connection);
 
-                    request.Response.SetResult(connection);
-                }
-                else
-                {
-                    request.Response.SetException(new Exception("connection failed"));
-                }
+                request.Response.SetResult(connection);
 
                 dispatcher.ConnectRequests.Remove(this.ConnectionId);
+            }
+
+            if (this.DoClientBroadcast)
+            {
+                TimerEvent.MakeContactAsync(dispatcher);
             }
 
             return default;
