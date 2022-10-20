@@ -54,8 +54,8 @@ namespace ConnectionTest
                         .ConfigureServices(services =>
                         {
                             services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(connFactory));
-                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
                             services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetGatewayKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
                         })
                         .ConfigureEndpoints(siloPort: port, gatewayPort: 0)
                         .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))

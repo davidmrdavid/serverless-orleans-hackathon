@@ -14,6 +14,9 @@ namespace ConnectionTest
     using System.Net;
     using System.Net.Http;
     using System.Diagnostics;
+    using global::ConnectionTest.Algorithm;
+    using System.Reflection;
+    using System.Threading;
 
     public static class HttpTriggers
     {
@@ -92,5 +95,34 @@ namespace ConnectionTest
             httpResponseMessage.Content = new StringContent($"caller completed successfully after receiving {linesReceived} lines in {stopwatch.Elapsed}.\n");
             return httpResponseMessage;
         }
+
+        [FunctionName("SingleSilo")]
+        public static async Task<HttpResponseMessage> SingleSilo(
+            [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "singlesilo")] HttpRequestMessage req,
+            ILogger log,
+            CancellationToken cancellationtoken)
+        {
+            log.LogWarning($"starting callee");
+
+            var connectionFactoryPromise = new TaskCompletionSource<ConnectionFactory>();
+
+            var silo = new Silo();
+            await silo.StartAsync(connectionFactoryPromise.Task, 11111, cancellationtoken);
+
+            Uri functionAddress = req.RequestUri;
+            string dispatcherId = $"{silo.Endpoint} {DateTime.UtcNow:o}";
+
+            var Dispatcher = new Dispatcher(functionAddress, dispatcherId, log, cancellationtoken);
+
+            //Dispatcher.StartChannels();
+
+            connectionFactoryPromise.SetResult(new ConnectionFactory(Dispatcher));
+
+            HttpResponseMessage httpResponseMessage = new HttpResponseMessage();
+            httpResponseMessage.StatusCode = HttpStatusCode.OK;
+            httpResponseMessage.RequestMessage = req;
+            return httpResponseMessage;
+        }
+
     }
 }
