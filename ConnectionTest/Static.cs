@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ConnectionTest.Algorithm;
+using System.Net;
 
 namespace ConnectionTest
 {
@@ -15,13 +16,13 @@ namespace ConnectionTest
         // singleton instance of the dispatcher
         static Dispatcher dispatcher;
 
-        public static HttpResponseMessage Dispatch(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
+        public static HttpResponseMessage Dispatch(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken, IPEndPoint endpoint)
         {
             // start the dispatcher if we haven't already on this worker
             if (dispatcher == null)
             {
                 Uri functionAddress = requestMessage.RequestUri;
-                string dispatcherId = $"{Environment.MachineName} {DateTime.UtcNow:o}";
+                string dispatcherId = $"{endpoint} {DateTime.UtcNow:o}";
 
                 var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
 

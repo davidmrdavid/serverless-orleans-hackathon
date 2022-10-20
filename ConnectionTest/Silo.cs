@@ -4,17 +4,22 @@
 namespace ConnectionTest
 {
     using global::ConnectionTest.Algorithm;
+    using Microsoft.AspNetCore.Connections;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Orleans;
     using Orleans.Configuration;
     using Orleans.Hosting;
+    using Orleans.Runtime.Development;
     using System;
     using System.Threading.Tasks;
+    using Orleans.TestingHost.InMemoryTransport;
+    using Orleans.Runtime;
+    using Orleans.Runtime.Messaging;
 
     public class Silo
     {
-        IHost host;
+        public IHost host;
         IDisposable cancellationTokenRegistration;
 
         // singleton instance of the silo
@@ -43,13 +48,19 @@ namespace ConnectionTest
 
             try
             {
-
+                
                 host = new HostBuilder()
                     .UseOrleans(builder => builder
                         .Configure<ClusterOptions>(options =>
                         {
                             options.ClusterId = "my-first-cluster";
                             options.ServiceId = "MyAwesomeOrleansService";
+                        })
+                        .ConfigureServices(services =>
+                        {
+                            services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(dispatcher));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(dispatcher));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(dispatcher));
                         })
                         .ConfigureEndpoints(siloPort: 11111, gatewayPort: 0)
                         .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
