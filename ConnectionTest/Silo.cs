@@ -1,9 +1,9 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
-
-namespace ConnectionTest.Algorithm
+namespace ConnectionTest
 {
+    using global::ConnectionTest.Algorithm;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Orleans;
@@ -14,7 +14,6 @@ namespace ConnectionTest.Algorithm
 
     public class Silo
     {
-        Dispatcher dispatcher;
         IHost host;
         IDisposable cancellationTokenRegistration;
 
@@ -40,7 +39,6 @@ namespace ConnectionTest.Algorithm
 
         async Task StartAsync(Dispatcher dispatcher)
         {
-            this.dispatcher = dispatcher;
             this.cancellationTokenRegistration = dispatcher.HostShutdownToken.Register(this.Shutdown);
 
             try
@@ -70,7 +68,8 @@ namespace ConnectionTest.Algorithm
 
         void Shutdown()
         {
-            this.cancellationTokenRegistration.Dispose();
+            this.cancellationTokenRegistration?.Dispose();
+
             Task.Run(async () =>
             {
                 await siloPromise.Task;
