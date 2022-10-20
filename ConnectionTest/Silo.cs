@@ -16,11 +16,13 @@ namespace ConnectionTest
     using Orleans.TestingHost.InMemoryTransport;
     using Orleans.Runtime;
     using Orleans.Runtime.Messaging;
+    using System.Threading;
 
     public class Silo
     {
         public IHost host;
         IDisposable cancellationTokenRegistration;
+        public string Endpoint;
 
         // singleton instance of the silo
         static TaskCompletionSource<Silo> siloPromise = new TaskCompletionSource<Silo>();
@@ -32,23 +34,16 @@ namespace ConnectionTest
 
         public IGrainFactory GrainFactory => host.Services.GetRequiredService<IGrainFactory>();
 
-        internal static void StartOnThreadpool(Dispatcher dispatcher)
-        {
-            // start on thread pool
-            Task.Run(() => new Silo().StartAsync(dispatcher));
-        }
-
-        Silo()
+        internal Silo()
         {
         }
 
-        async Task StartAsync(Dispatcher dispatcher)
+        internal async Task StartAsync(Task<ConnectionFactory> connFactory, int port, CancellationToken cancellationToken)
         {
-            this.cancellationTokenRegistration = dispatcher.HostShutdownToken.Register(this.Shutdown);
-
             try
             {
-                
+                this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
+
                 host = new HostBuilder()
                     .UseOrleans(builder => builder
                         .Configure<ClusterOptions>(options =>
@@ -58,17 +53,19 @@ namespace ConnectionTest
                         })
                         .ConfigureServices(services =>
                         {
-                            services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(dispatcher));
-                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(dispatcher));
-                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(dispatcher));
+                            services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(connFactory));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
                         })
-                        .ConfigureEndpoints(siloPort: 11111, gatewayPort: 0)
+                        .ConfigureEndpoints(siloPort: port, gatewayPort: 0)
                         .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
                         .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
                     )
                     .Build();
 
                 await host.StartAsync();
+
+                this.Endpoint = host.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint.ToString();
                 siloPromise.SetResult(this);
             }
             catch (Exception e)
