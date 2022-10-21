@@ -3,7 +3,9 @@
   "logging": {
     "logLevel": {
       "Function.ConnectionTest": "Warning",
-      "Function.ConnectionTest.User": "Information"
+      "Function.ConnectionTest.User": "Information",
+      "Function.Orleans": "Warning",
+      "Function.Orleans.User": "Information"
     }
   },
   "extensions": {

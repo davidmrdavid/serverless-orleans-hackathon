@@ -14,6 +14,9 @@ namespace ConnectionTest
     using System.Net;
     using System.Net.Http;
     using System.Diagnostics;
+    using global::ConnectionTest.Algorithm;
+    using System.Reflection;
+    using System.Threading;
 
     public static class HttpTriggers
     {

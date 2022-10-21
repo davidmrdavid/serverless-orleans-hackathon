@@ -15,7 +15,7 @@ namespace ConnectionTest.Algorithm
 
     public class ConnectionFactory
     {
-        Dispatcher dispatcher;
+        readonly Dispatcher dispatcher;
 
         public ConnectionFactory(Dispatcher dispatcher)
         {

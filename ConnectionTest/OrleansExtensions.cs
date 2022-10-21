@@ -20,29 +20,29 @@ namespace ConnectionTest
 {
     public static class OrleansExtensions
     {
-        public static Func<IServiceProvider, object, IConnectionFactory> CreateServerlessConnectionFactory(Dispatcher dispatcher)
+        public static Func<IServiceProvider, object, IConnectionFactory> CreateServerlessConnectionFactory(ConnectionFactory connFactory)
         {
             return (IServiceProvider sp, object key) =>
             {
-                return new ServerlessConnectionManager(dispatcher);
+                return new ServerlessConnectionManager(connFactory);
             };
         }
 
-        public static Func<IServiceProvider, object, IConnectionListenerFactory> CreateServerlessConnectionListenerFactory(Dispatcher dispatcher)
+        public static Func<IServiceProvider, object, IConnectionListenerFactory> CreateServerlessConnectionListenerFactory(ConnectionFactory connFactory)
         {
             return (IServiceProvider sp, object key) =>
             {
-                return new ServerlessConnectionManager(dispatcher);
+                return new ServerlessConnectionManager(connFactory);
             };
         }
 
         public class ServerlessConnectionManager : IConnectionFactory, IConnectionListenerFactory, IConnectionListener
         {
-            ConnectionFactory connFactory;
+            readonly ConnectionFactory connFactory;
 
-            public ServerlessConnectionManager(Dispatcher dispatcher)
+            public ServerlessConnectionManager(ConnectionFactory connFactory)
             {
-                connFactory = new ConnectionFactory(dispatcher);
+                this.connFactory = connFactory;
             }
 
             EndPoint IConnectionListener.EndPoint => throw new NotImplementedException();
@@ -57,9 +57,9 @@ namespace ConnectionTest
                 return await ServerlessConnection.Create(connFactory, cancellationToken);
             }
 
-            async ValueTask<IConnectionListener> IConnectionListenerFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
+            ValueTask<IConnectionListener> IConnectionListenerFactory.BindAsync(EndPoint endpoint, CancellationToken cancellationToken)
             {
-                return this;
+                return new ValueTask<IConnectionListener>(this);
             }
 
             ValueTask IAsyncDisposable.DisposeAsync()
@@ -83,13 +83,12 @@ namespace ConnectionTest
 
             public async static Task<ServerlessConnection> Create(ConnectionFactory connFactory, EndPoint endpoint, CancellationToken cancellationToken)
             {
-
                 var targetEndpointStr = endpoint.ToString(); // TODO: ???
                 Connection conn = await connFactory.ConnectAsync(targetEndpointStr); // TODO: add token
 
                 return new ServerlessConnection(conn);
-
             }
+
             public ServerlessConnection(Connection conn)
             {
                 myConnection = conn;
@@ -98,8 +97,8 @@ namespace ConnectionTest
 
                 PipeReader pr1 = PipeReader.Create(s1);
                 PipeWriter pw1 = PipeWriter.Create(s2);
-                var applicationDuplexPipe = new DuplexPipe(pr1, pw1);
-                Application = applicationDuplexPipe;
+                var duplexPipe = new DuplexPipe(pr1, pw1);
+                Transport = duplexPipe;
 
                 //todo close connection   
             }
@@ -109,7 +108,6 @@ namespace ConnectionTest
                 Connection conn = await connFactory.AcceptAsync();
                 return new ServerlessConnection(conn);
             }
-
         }
     }
 }

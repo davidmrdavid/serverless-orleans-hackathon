@@ -46,8 +46,7 @@ namespace ConnectionTest.Algorithm
             else if (queue.Count > maxPool)
             {
                 var obsoleteChannel = queue.Dequeue();
-                await obsoleteChannel.Stream.DisposeAsync();
-                obsoleteChannel.TerminateResponse();
+                obsoleteChannel.Dispose();
             }
         }
     }

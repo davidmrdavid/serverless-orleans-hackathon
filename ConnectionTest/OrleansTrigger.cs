@@ -25,14 +25,12 @@ namespace ConnectionTest
         /// <param name="logger">A logger for displaying log messages.</param>
         /// <returns></returns>
         [FunctionName("Orleans")]
-        public static async Task<HttpResponseMessage> OrleansAsync(
+        public static async Task<HttpResponseMessage> Orleans(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orleans")] HttpRequestMessage req,
             CancellationToken shutDownToken,
             ILogger logger)
         {
-            var silo = await Silo.GetSiloAsync();
-            var endpoint = silo.host.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint;
-            return Static.Dispatch(req, logger, shutDownToken, endpoint);
+            return await Static.DispatchAsync(req, logger, shutDownToken);
         }
     }
 }
