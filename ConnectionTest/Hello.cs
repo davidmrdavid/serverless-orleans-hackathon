@@ -26,7 +26,7 @@ namespace ConnectionTest
             {
                 log.LogWarning($"getting silo");
 
-                var silo = await Silo.GetSiloAsync();
+                var silo = await Static.GetSiloAsync();
 
                 var friend = silo.GrainFactory.GetGrain<Application.IHelloGrain>("friend");
 

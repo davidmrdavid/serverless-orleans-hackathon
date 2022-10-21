@@ -9,6 +9,8 @@ namespace ConnectionTest
     using Microsoft.Extensions.Logging;
     using System.Net.Http;
     using System.Threading;
+    using Orleans.Runtime;
+    using Microsoft.Extensions.DependencyInjection;
 
     public static class OrleansTrigger
     {
@@ -23,12 +25,12 @@ namespace ConnectionTest
         /// <param name="logger">A logger for displaying log messages.</param>
         /// <returns></returns>
         [FunctionName("Orleans")]
-        public static HttpResponseMessage Orleans(
+        public static async Task<HttpResponseMessage> Orleans(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orleans")] HttpRequestMessage req,
             CancellationToken shutDownToken,
             ILogger logger)
         {
-            return Static.Dispatch(req, logger, shutDownToken);
+            return await Static.DispatchAsync(req, logger, shutDownToken);
         }
     }
 }

@@ -30,6 +30,7 @@ namespace ConnectionTest.Algorithm
 
             if (key == null)
             {
+                dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} queued", dispatcher, this.ToMachine);
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
@@ -51,8 +52,10 @@ namespace ConnectionTest.Algorithm
                         this.OutChannel.Stream,
                         queue.Count() == 0 ? Format.Op.ConnectAndSolicit : Format.Op.Connect,
                         this.ConnectionId);
+
+                    dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} sent", dispatcher, this.ToMachine);
                 }
-                catch(Exception exception)
+                catch (Exception exception)
                 {
                     dispatcher.Logger.LogWarning("{dispatcher} could not send Connect message: {exception}", dispatcher, exception);
 
