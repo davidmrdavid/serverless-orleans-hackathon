@@ -31,7 +31,7 @@ namespace ConnectionTest.Algorithm
 
             if (key == null)
             {
-                dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} queued", dispatcher, this.ToMachine);
+                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
@@ -54,11 +54,11 @@ namespace ConnectionTest.Algorithm
                         queue.Count() == 0 ? Format.Op.ConnectAndSolicit : Format.Op.Connect,
                         this.ConnectionId);
 
-                    dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} sent", dispatcher, this.ToMachine);
+                    dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N}  to {destination} sent", dispatcher, this.ConnectionId, this.ToMachine);
                 }
                 catch (Exception exception)
                 {
-                    dispatcher.Logger.LogWarning("{dispatcher} could not send Connect message: {exception}", dispatcher, exception);
+                    dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} could not send Connect message: {exception}", dispatcher, this.ConnectionId, exception);
 
                     // we can retry this
                     dispatcher.Worker.Submit(this);
@@ -70,7 +70,9 @@ namespace ConnectionTest.Algorithm
 
         public override void HandleTimeout(Dispatcher dispatcher)
         {
-            this.Response.TrySetException(new TimeoutException($"Could not reach {this.ToMachine} after {DateTime.UtcNow - this.Issued}"));
+            TimeSpan elapsed = DateTime.UtcNow - this.Issued;
+            dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect to {destination} timed out after {elapsed}", dispatcher, this.ConnectionId, this.ToMachine, elapsed);
+            this.Response.TrySetException(new TimeoutException($"Could not reach {this.ToMachine} after {elapsed}"));
         }
     }
 }

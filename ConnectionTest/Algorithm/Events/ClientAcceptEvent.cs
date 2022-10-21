@@ -32,9 +32,15 @@ namespace ConnectionTest.Algorithm
 
                 dispatcher.OutConnections.Add(this.ConnectionId, connection);
 
+                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} accept received, connection established", dispatcher, this.ConnectionId);
+
                 request.Response.SetResult(connection);
 
                 dispatcher.ConnectRequests.Remove(this.ConnectionId);
+            }
+            else
+            {
+                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} accept discarded", dispatcher, this.ConnectionId);
             }
 
             if (this.DoClientBroadcast)

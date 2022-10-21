@@ -46,9 +46,10 @@ namespace ConnectionTest
             {
                 Uri functionAddress = requestMessage.RequestUri;
                 string siloEndpoint = $"{address}:{port}";
-                string dispatcherId = $"{siloEndpoint} {DateTime.UtcNow:o}";
+                string dispatcherIdPrefix = $"{siloEndpoint}";
+                string dispatcherIdSuffix = $"{DateTime.UtcNow:o}";
 
-                var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
+                var newDispatcher = new Dispatcher(functionAddress, dispatcherIdPrefix, dispatcherIdSuffix, logger, hostShutdownToken);
                 newDispatcher.StartChannels();
                 DispatcherPromise.SetResult(newDispatcher);
 

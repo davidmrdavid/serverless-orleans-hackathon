@@ -32,6 +32,7 @@ namespace ConnectionTest.Algorithm
                 if (!dispatcher.OutChannels.TryGetValue(this.InChannel.DispatcherId, out var queue))
                 {
                     dispatcher.OutChannelWaiters.Add(this);
+                    dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect from {destination} queued for channel", dispatcher, this.ConnectionId, this.InChannel.DispatcherId);
                     return;
                 }
                 else
@@ -44,7 +45,7 @@ namespace ConnectionTest.Algorithm
                     }
                     this.OutChannel.ConnectionId = this.ConnectionId;
                 }
-            }      
+            }
 
             dispatcher.AcceptWaiters.Enqueue(this);
 
@@ -53,7 +54,11 @@ namespace ConnectionTest.Algorithm
             {
                 await acceptEvent.ProcessAsync(dispatcher);
             }
-          
+            else
+            {
+                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect from {destination} queued for accept", dispatcher, this.ConnectionId, this.InChannel.DispatcherId);
+            }
+
             if (this.DoServerBroadcast)
             {
                 TimerEvent.MakeContactAsync(dispatcher);

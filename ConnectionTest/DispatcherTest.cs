@@ -40,7 +40,7 @@ namespace ConnectionTest
 
                 dispatchers = Enumerable
                     .Range(0, numDispatchers)
-                    .Select(i => new Dispatcher(req.RequestUri, $"{i:D2} {DateTime.UtcNow:o}", log, cancellationToken))
+                    .Select(i => new Dispatcher(req.RequestUri, $"{i:D2}", $"{DateTime.UtcNow}", log, cancellationToken))
                     .ToArray();
 
                 connectionFactories = Enumerable

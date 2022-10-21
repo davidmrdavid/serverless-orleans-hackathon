@@ -25,6 +25,7 @@ namespace ConnectionTest.Algorithm
         internal ILogger Logger { get; }
         internal Dispatcher.Processor Worker { get; }
         public string DispatcherId { get; }
+        public string ShortId { get; }
         internal byte[] DispatcherIdBytes { get; }
         public Uri FunctionAddress { get; }
         public HttpClient HttpClient { get; }
@@ -44,14 +45,15 @@ namespace ConnectionTest.Algorithm
         internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
         internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
-        public Dispatcher(Uri FunctionAddress, string dispatcherId, ILogger logger, CancellationToken hostShutdownToken)
+        public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger, CancellationToken hostShutdownToken)
         {
             this.Logger = logger;
             this.Worker = new Processor(this, hostShutdownToken);
             this.HostShutdownToken = hostShutdownToken;
             this.FunctionAddress = FunctionAddress;
-            this.DispatcherId = dispatcherId;
-            this.DispatcherIdBytes = GetBytes(dispatcherId);
+            this.DispatcherId = $"{dispatcherIdPrefix} {dispatcherIdSuffix}";
+            this.ShortId = dispatcherIdPrefix;
+            this.DispatcherIdBytes = GetBytes(this.DispatcherId);
             this.HttpClient = new HttpClient();
             this.HttpClient.DefaultRequestHeaders.Add("DispatcherId", this.DispatcherId);
             this.OutChannels = new SortedDictionary<string, Queue<OutChannel>>();
@@ -79,7 +81,7 @@ namespace ConnectionTest.Algorithm
 
         public override string ToString()
         {
-            return $"Dispatcher {this.DispatcherId}";
+            return $"Dispatcher {this.ShortId}";
         }
 
         public void Dispose()

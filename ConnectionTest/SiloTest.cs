@@ -129,9 +129,10 @@ namespace ConnectionTest
                 var address = IPAddress.Parse($"{index + 1}.{index + 1}.{index + 1}.{index + 1}");
                 int port = index + 1;
                 string siloEndpoint = $"{address}:{port}";
-                string dispatcherId = $"{siloEndpoint} {DateTime.UtcNow:o}";
+                string dispatcherIdPrefix = siloEndpoint;
+                string dispatcherIdSuffix = DateTime.UtcNow.ToString("O");
 
-                var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
+                var newDispatcher = new Dispatcher(functionAddress, dispatcherIdPrefix, dispatcherIdSuffix, logger, hostShutdownToken);
                 newDispatcher.StartChannels();
                 dispatcherPromise.SetResult(newDispatcher);
 
@@ -140,7 +141,7 @@ namespace ConnectionTest
                 await silo.StartAsync(address, port, connectionFactory, hostShutdownToken);
                 siloPromise.SetResult(silo);
 
-                logger.LogWarning($"Silo {index} started successfully {dispatcherId}");
+                logger.LogWarning($"Silo {index} started successfully {newDispatcher.DispatcherId}");
             }
         }
     }
