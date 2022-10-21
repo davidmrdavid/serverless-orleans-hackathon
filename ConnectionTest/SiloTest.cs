@@ -36,11 +36,6 @@ namespace ConnectionTest
             CancellationToken cancellationToken,
             ILogger log)
         {
-
-            IPAddress ip = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
-            Console.WriteLine(ip.ToString());
-            log.LogWarning($"You have reached IP = {ip}");
-
             if (started == 0)
             {
                 if (Interlocked.CompareExchange(ref started, 1, 0) == 0)

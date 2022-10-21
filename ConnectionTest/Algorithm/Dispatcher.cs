@@ -71,10 +71,10 @@ namespace ConnectionTest.Algorithm
             this.Worker.Submit(new TimerEvent());
         }
 
-        public string PrintInformation()
+        public string PrintInformation(bool includeIdentity = false)
         {
             var poolSizes = string.Join(",", this.ChannelPools.Values.Select(q => q.Count.ToString()));
-            return $"ChPool=[{poolSizes}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
+            return $"{(includeIdentity? this.ToString() + " " : "")}ChPool=[{poolSizes}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
                 + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}";
         }
 
@@ -124,7 +124,7 @@ namespace ConnectionTest.Algorithm
                 {
                     // this is a request sent from external admin, to start or inquire
                     httpResponseMessage.StatusCode = requestMessage.Method == HttpMethod.Get ? HttpStatusCode.OK : HttpStatusCode.Accepted;
-                    httpResponseMessage.Content = new StringContent(this?.PrintInformation() ?? "not started. Need to POST first, with service Url as argument.\n");
+                    httpResponseMessage.Content = new StringContent(this?.PrintInformation(true) ?? "not started. Need to POST first, with service Url as argument.\n");
                 }
                 else
                 {

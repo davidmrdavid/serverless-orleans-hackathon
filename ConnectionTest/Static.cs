@@ -12,6 +12,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 using System.Transactions;
+using Orleans.Runtime.Configuration;
 
 namespace ConnectionTest
 {
@@ -32,8 +33,9 @@ namespace ConnectionTest
             // start the dispatcher if we haven't already on this worker
             if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
             {
-                var address = IPAddress.Parse($"0.0.0.0"); // todo we need this host's address
-                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, 1, logger, hostShutdownToken));
+                IPAddress address = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
+                int port = new Random().Next(99999) + 1;
+                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, port, logger, hostShutdownToken));
             }
 
             var dispatcher = await DispatcherPromise.Task.ConfigureAwait(false);

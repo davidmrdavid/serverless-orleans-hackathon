@@ -52,7 +52,7 @@ namespace ConnectionTest
             }
         }
 
-        internal async Task StartAsync(string clusterId, IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken)
+        internal async Task StartAsync(string clusterId, IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken, ILogger logger)
         {
             this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
             ILoggerProvider loggerProvider = new WorkerLoggerProvider(logger);
