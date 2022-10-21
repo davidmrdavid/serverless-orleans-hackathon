@@ -30,6 +30,7 @@ namespace ConnectionTest.Algorithm
 
             if (key == null)
             {
+                dispatcher.Logger.LogWarning($"{dispatcher} connect to {this.ToMachine} queued");
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
@@ -46,6 +47,8 @@ namespace ConnectionTest.Algorithm
                 dispatcher.ConnectRequests.Add(this.ConnectionId, this);
 
                 await Format.SendAsync(this.OutChannel.Stream, Format.Op.TryConnect, this.ConnectionId);
+
+                dispatcher.Logger.LogWarning($"{dispatcher} connect to {this.ToMachine} sent");
             }
         }
     }

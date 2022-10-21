@@ -20,7 +20,7 @@ namespace ConnectionTest
 {
     public static class OrleansExtensions
     {
-        public static Func<IServiceProvider, object, IConnectionFactory> CreateServerlessConnectionFactory(Task<ConnectionFactory> connFactory)
+        public static Func<IServiceProvider, object, IConnectionFactory> CreateServerlessConnectionFactory(ConnectionFactory connFactory)
         {
             return (IServiceProvider sp, object key) =>
             {
@@ -28,7 +28,7 @@ namespace ConnectionTest
             };
         }
 
-        public static Func<IServiceProvider, object, IConnectionListenerFactory> CreateServerlessConnectionListenerFactory(Task<ConnectionFactory> connFactory)
+        public static Func<IServiceProvider, object, IConnectionListenerFactory> CreateServerlessConnectionListenerFactory(ConnectionFactory connFactory)
         {
             return (IServiceProvider sp, object key) =>
             {
@@ -38,9 +38,9 @@ namespace ConnectionTest
 
         public class ServerlessConnectionManager : IConnectionFactory, IConnectionListenerFactory, IConnectionListener
         {
-            readonly Task<ConnectionFactory> connFactory;
+            readonly ConnectionFactory connFactory;
 
-            public ServerlessConnectionManager(Task<ConnectionFactory> connFactory)
+            public ServerlessConnectionManager(ConnectionFactory connFactory)
             {
                 this.connFactory = connFactory;
             }
@@ -81,10 +81,10 @@ namespace ConnectionTest
             public Connection myConnection;
             public ConnectionFactory connFactory;
 
-            public async static Task<ServerlessConnection> Create(Task<ConnectionFactory> connFactory, EndPoint endpoint, CancellationToken cancellationToken)
+            public async static Task<ServerlessConnection> Create(ConnectionFactory connFactory, EndPoint endpoint, CancellationToken cancellationToken)
             {
                 var targetEndpointStr = endpoint.ToString(); // TODO: ???
-                Connection conn = await (await connFactory).ConnectAsync(targetEndpointStr); // TODO: add token
+                Connection conn = await connFactory.ConnectAsync(targetEndpointStr); // TODO: add token
 
                 return new ServerlessConnection(conn);
             }
@@ -97,15 +97,15 @@ namespace ConnectionTest
 
                 PipeReader pr1 = PipeReader.Create(s1);
                 PipeWriter pw1 = PipeWriter.Create(s2);
-                var applicationDuplexPipe = new DuplexPipe(pr1, pw1);
-                Application = applicationDuplexPipe;
+                var duplexPipe = new DuplexPipe(pr1, pw1);
+                Transport = duplexPipe;
 
                 //todo close connection   
             }
 
-            public async static Task<ServerlessConnection> Create(Task<ConnectionFactory> connFactory, CancellationToken cancellationToken)
+            public async static Task<ServerlessConnection> Create(ConnectionFactory connFactory, CancellationToken cancellationToken)
             {
-                Connection conn = await (await connFactory).AcceptAsync();
+                Connection conn = await connFactory.AcceptAsync();
                 return new ServerlessConnection(conn);
             }
         }
