@@ -68,9 +68,18 @@ namespace ConnectionTest.Algorithm
         {
             try
             {
+                // create channel id and add it to URI
+                Guid channelId = Guid.NewGuid();
+                var ub = new UriBuilder(dispatcher.FunctionAddress);
+                var uriBuilder = new UriBuilder(dispatcher.FunctionAddress);
+                var paramValues = HttpUtility.ParseQueryString(uriBuilder.Query);
+                paramValues.Add("channelId", channelId.ToString());
+                uriBuilder.Query = paramValues.ToString();
+                var uri = uriBuilder.Uri;
+
                 // Wait for the response stream and process it asynchronously
-                var responseStream = dispatcher.HttpClient.GetStreamAsync(dispatcher.FunctionAddress, dispatcher.HostShutdownToken);
-                var _ = Task.Run(() => InChannel.ReceiveAsync(dispatcher, responseStream));
+                var responseStream = dispatcher.HttpClient.GetStreamAsync(uri, dispatcher.HostShutdownToken);
+                var _ = Task.Run(() => InChannel.ReceiveAsync(channelId, dispatcher, responseStream));
                 return true;
             }
             catch (Exception exception)

@@ -96,7 +96,7 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static void FilterDictionary<K, V>(Dictionary<K, V> dictionary, Func<V, bool> predicate)
+        public static void FilterDictionary<K, V>(Dictionary<K, V> dictionary, Func<V, bool> predicate, Action<K,V> action = null)
         {
             List<K> toRemove = null;
             foreach (var kvp in dictionary)
@@ -104,6 +104,11 @@ namespace ConnectionTest.Algorithm
                 if (!predicate(kvp.Value))
                 {
                     (toRemove ?? (toRemove = new List<K>())).Add(kvp.Key);
+
+                    if (action != null)
+                    {
+                        action(kvp.Key, kvp.Value);
+                    }
                 }
             }
             if (toRemove != null)

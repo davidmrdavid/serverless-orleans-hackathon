@@ -11,6 +11,7 @@ namespace ConnectionTest.Algorithm
     public class Channel : IDisposable
     {
         public string DispatcherId;
+        public Guid ChannelId;
         public StreamWrapper Stream;
         public Guid ConnectionId;
         public bool Disposed;

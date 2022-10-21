@@ -115,9 +115,14 @@ namespace ConnectionTest.Algorithm
             try
             {
                 string from = null;
+                Guid channelId = default;
+
                 if (requestMessage.Headers.TryGetValues("DispatcherId", out var values))
                 {
                     from = values.FirstOrDefault();
+                    var query = requestMessage.RequestUri.ParseQueryString();
+                    string channelIdString = query["channelId"];
+                    channelId = Guid.Parse(channelIdString);
                 }
 
                 if (from == null)
@@ -143,6 +148,11 @@ namespace ConnectionTest.Algorithm
 
                             var outChannel = new OutChannel();
                             outChannel.DispatcherId = from;
+                            outChannel.ChannelId = channelId;
+
+                            await stream.WriteAsync(this.DispatcherIdBytes);
+                            await stream.FlushAsync();
+
                             outChannel.Stream = new StreamWrapper(stream, this, outChannel);
                             outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
                             
@@ -151,8 +161,6 @@ namespace ConnectionTest.Algorithm
                                 OutChannel = outChannel,
                             });
 
-                            await stream.WriteAsync(this.DispatcherIdBytes);
-                            await stream.FlushAsync();
                             await completionPromise.Task;
                             await stream.DisposeAsync();
                         });

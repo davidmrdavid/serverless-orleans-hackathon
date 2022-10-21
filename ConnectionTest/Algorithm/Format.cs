@@ -25,6 +25,7 @@ namespace ConnectionTest.Algorithm
             ConnectAndSolicit,
             Accept,
             AcceptAndSolicit,
+            ConnectionFailed,
             ChannelFailed,
             Closed,
         }

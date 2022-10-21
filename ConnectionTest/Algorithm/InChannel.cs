@@ -8,16 +8,18 @@ namespace ConnectionTest.Algorithm
     using System.Diagnostics;
     using System.IO;
     using System.Net.Http;
+    using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
 
     public class InChannel : Channel
     {
-        internal static async Task ReceiveAsync(Dispatcher dispatcher, Task<Stream> streamTask)
+        internal static async Task ReceiveAsync(Guid channelId, Dispatcher dispatcher, Task<Stream> streamTask)
         {
             try
             {
                 var stream = await streamTask;
                 var channel = new InChannel();
+                channel.ChannelId = channelId;
 
                 if (stream.GetType().Name == "EmptyReadStream")
                 {
@@ -39,13 +41,13 @@ namespace ConnectionTest.Algorithm
 
                 while (!dispatcher.HostShutdownToken.IsCancellationRequested)
                 {
-                    (Format.Op op, Guid connectionId) = await Format.ReceiveAsync(channel.Stream, dispatcher.HostShutdownToken);
+                    (Format.Op op, Guid guid) = await Format.ReceiveAsync(channel.Stream, dispatcher.HostShutdownToken);
 
                     switch (op)
                     {
                         case Format.Op.Connect:
                         case Format.Op.ConnectAndSolicit:
-                            channel.ConnectionId = connectionId;
+                            channel.ConnectionId = guid;
                             dispatcher.Worker.Submit(new ServerConnectEvent()
                             {
                                 ConnectionId = channel.ConnectionId,
@@ -58,7 +60,7 @@ namespace ConnectionTest.Algorithm
 
                         case Format.Op.Accept:
                         case Format.Op.AcceptAndSolicit:
-                            channel.ConnectionId = connectionId;
+                            channel.ConnectionId = guid;
                             dispatcher.Worker.Submit(new ClientAcceptEvent()
                             {
                                 ConnectionId = channel.ConnectionId,
@@ -73,9 +75,18 @@ namespace ConnectionTest.Algorithm
                             return;
 
                         case Format.Op.ChannelFailed:
+                            dispatcher.Worker.Submit(new ChannelFailedEvent()
+                            {
+                                ChannelId = guid,
+                                DispatcherId = channel.DispatcherId,
+                            });
+                            // we can continue listening on this stream
+                            break;
+
+                        case Format.Op.ConnectionFailed:
                             dispatcher.Worker.Submit(new ConnectionFailedEvent()
                             {
-                                ConnectionId = connectionId,
+                                ConnectionId = guid,
                             });
                             // we can continue listening on this stream
                             break;
@@ -84,7 +95,13 @@ namespace ConnectionTest.Algorithm
             }
             catch (Exception exception)
             {
-                dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception in ListenAsync: {exception}", dispatcher.DispatcherId, exception);
+                dispatcher.Worker.Submit(new ChannelFailedEvent()
+                {
+                    ChannelId = channelId,
+                    DispatcherId = dispatcher.DispatcherId,
+
+                });
+                dispatcher.Logger.LogWarning("Dispatcher {dispatcherId} encountered exception in ListenAsync: {exception}", dispatcher.DispatcherId, exception);
             }
         }
 
