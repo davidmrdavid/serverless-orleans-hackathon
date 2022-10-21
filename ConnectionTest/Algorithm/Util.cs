@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using Orleans.Streams;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,11 +48,23 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static List<T> FilterList<T>(List<T> list, Func<T, bool> predicate)
+        public static List<T> FilterList<T>(List<T> list, Func<T, bool> predicate, Action<T> action = null)
         {
             if (list.Any(element => !predicate(element)))
             {
-                return list.Where(predicate).ToList();
+                var newlist = new List<T>();
+                foreach(var element in list)
+                {
+                    if (predicate(element))
+                    {
+                        newlist.Add(element);
+                    }
+                    else if (action != null)
+                    {
+                        action(element);
+                    }
+                }
+                return newlist;
             }
             else
             {

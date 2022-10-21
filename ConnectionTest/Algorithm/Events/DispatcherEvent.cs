@@ -21,5 +21,12 @@ namespace ConnectionTest.Algorithm
         }
 
         public virtual bool CancelWithConnection(Guid connectionId) => false;
+
+        public virtual bool TimedOut => false;
+
+        public virtual void HandleTimeout(Dispatcher dispatcher) 
+        {
+        }
+
     }
 }

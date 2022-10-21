@@ -19,6 +19,7 @@ namespace ConnectionTest.Algorithm
     {
         public Guid ConnectionId;
         public string ToMachine;
+        public DateTime Issued;
         public TaskCompletionSource<Connection> Response;
         public OutChannel OutChannel;
 
@@ -63,6 +64,13 @@ namespace ConnectionTest.Algorithm
                     dispatcher.Worker.Submit(this);
                 }
             }
+        }
+
+        public override bool TimedOut => DateTime.UtcNow - this.Issued > TimeSpan.FromSeconds(30);
+
+        public override void HandleTimeout(Dispatcher dispatcher)
+        {
+            this.Response.TrySetException(new TimeoutException($"Could not reach {this.ToMachine} after {DateTime.UtcNow - this.Issued}"));
         }
     }
 }

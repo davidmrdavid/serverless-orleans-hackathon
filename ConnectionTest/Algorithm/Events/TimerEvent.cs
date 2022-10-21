@@ -24,19 +24,21 @@ namespace ConnectionTest.Algorithm
         public override ValueTask ProcessAsync(Dispatcher dispatcher)
         {
             dispatcher.Logger.LogDebug($"{dispatcher} Processing TimerEvent");
-            
+
             MakeContactAsync(dispatcher);
 
             TimeSpan nextBroadcast;
             if (count < 5)
             {
-                nextBroadcast = TimeSpan.FromSeconds(5); 
+                nextBroadcast = TimeSpan.FromSeconds(5);
             }
             else
             {
                 nextBroadcast = TimeSpan.FromSeconds(60 + random.Next(30));
             }
-           
+
+           // this.RemoveTimedOutChannelWaiters(dispatcher);
+
             this.Reschedule(dispatcher, nextBroadcast);
 
             return default;
@@ -56,7 +58,7 @@ namespace ConnectionTest.Algorithm
                     numSuccessful++;
                 }
             }
-             
+
             dispatcher.Logger.LogDebug($"{dispatcher} sent {numRequests} contact requests");
         }
 
@@ -74,6 +76,14 @@ namespace ConnectionTest.Algorithm
                 dispatcher.Logger.LogDebug($"{dispatcher} failed to send contact request: {exception}");
                 return false;
             }
+        }
+
+        public void RemoveTimedOutChannelWaiters(Dispatcher dispatcher)
+        {
+            dispatcher.OutChannelWaiters = Util.FilterList(
+                dispatcher.OutChannelWaiters,
+                element => !element.TimedOut,
+                element => element.HandleTimeout(dispatcher));
         }
     }
 }

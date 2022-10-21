@@ -28,6 +28,7 @@ namespace ConnectionTest.Algorithm
             {
                 ConnectionId = Guid.NewGuid(),
                 ToMachine = machine,
+                Issued = DateTime.UtcNow,
                 Response = new TaskCompletionSource<Connection>(),
             };
             this.dispatcher.Worker.Submit(connectEvent);
