@@ -18,6 +18,7 @@ namespace ConnectionTest
     using Orleans.Runtime.Messaging;
     using System.Threading;
     using System.Net;
+    using Microsoft.Extensions.Logging;
 
     public class Silo
     {     
@@ -32,10 +33,29 @@ namespace ConnectionTest
         {
         }
 
+        public class WorkerLoggerProvider : ILoggerProvider
+        {
+            private ILogger _logger;
+            public WorkerLoggerProvider(ILogger logger)
+            {
+                _logger = logger;
+            }
+
+            public ILogger CreateLogger(string categoryName)
+            {
+                return _logger;
+            }
+
+            public void Dispose()
+            {
+                return;
+            }
+        }
+
         internal async Task StartAsync(string clusterId, IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken)
         {
             this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
-
+            ILoggerProvider loggerProvider = new WorkerLoggerProvider(logger);
             Host = new HostBuilder()
                 .UseOrleans(builder => builder
                     .Configure<ClusterOptions>(options =>
@@ -55,6 +75,7 @@ namespace ConnectionTest
                         services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
                         services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetGatewayKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
                     })
+                    .ConfigureLogging(logBuilder => logBuilder.AddProvider(loggerProvider))
                     .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
                     .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
                 )
