@@ -18,9 +18,8 @@ namespace ConnectionTest.Algorithm
             {
                 var stream = await streamTask;
                 var channel = new InChannel();
-                channel.Stream = new StreamWrapper(stream, dispatcher, channel);
 
-                if (channel.Stream.GetType().Name == "EmptyReadStream")
+                if (stream.GetType().Name == "EmptyReadStream")
                 {
                     // avoid exception throwing path in common case
                     return;
@@ -28,13 +27,15 @@ namespace ConnectionTest.Algorithm
 
                 try
                 {
-                    var reader = new BinaryReader(channel.Stream);
+                    var reader = new BinaryReader(stream);
                     channel.DispatcherId = reader.ReadString();
                 }
                 catch (System.IO.EndOfStreamException)
                 {
                     return;
                 }
+
+                channel.Stream = new StreamWrapper(stream, dispatcher, channel);
 
                 while (!dispatcher.HostShutdownToken.IsCancellationRequested)
                 {

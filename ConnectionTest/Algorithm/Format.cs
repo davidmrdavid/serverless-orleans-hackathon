@@ -31,7 +31,7 @@ namespace ConnectionTest.Algorithm
 
         const int packetSize = 17;
 
-        public static ValueTask SendAsync(Stream s, Op op, Guid connectionId)
+        public static ValueTask SendAsync(StreamWrapper s, Op op, Guid connectionId)
         {
             var buffer = new byte[packetSize];
             buffer[0] = (byte) op;
@@ -39,7 +39,7 @@ namespace ConnectionTest.Algorithm
             return s.WriteAsync(buffer);
         }
 
-        public static async Task<(Op op, Guid connectionId)> ReceiveAsync(Stream stream, CancellationToken token)
+        public static async Task<(Op op, Guid connectionId)> ReceiveAsync(StreamWrapper stream, CancellationToken token)
         {
             var buffer = new byte[packetSize];
             int pos = 0;
