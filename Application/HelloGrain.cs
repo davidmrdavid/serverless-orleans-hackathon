@@ -4,6 +4,8 @@ namespace Application
 {
     public class HelloGrain : Grain, IHelloGrain
     {
-        public Task<string> SayHello(string greeting) => Task.FromResult($"Hello, {greeting}!");
+        int count;
+
+        public Task<string> SayHello(string greeting) => Task.FromResult($"Hello, {greeting} {++count}!");
     }
 }
