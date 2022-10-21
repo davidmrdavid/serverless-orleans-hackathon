@@ -32,17 +32,17 @@ namespace ConnectionTest.Algorithm
         IDisposable cancellationTokenRegistration;
 
         // channels
-        internal SortedDictionary<string, Queue<OutChannel>> OutChannels { get; }
+        internal SortedDictionary<string, Queue<OutChannel>> OutChannels { get; set; }
         internal List<DispatcherEvent> OutChannelWaiters { get; set; }
 
         // client
-        internal Dictionary<Guid, ClientConnectEvent> ConnectRequests { get; }
-        internal Dictionary<Guid, Connection> OutConnections { get; }
+        internal Dictionary<Guid, ClientConnectEvent> ConnectRequests { get; set; }
+        internal Dictionary<Guid, Connection> OutConnections { get; set; }
 
         // server
-        internal Dictionary<Guid, Connection> InConnections { get; }
-        internal Queue<ServerAcceptEvent> AcceptQueue { get; }
-        internal Queue<ServerConnectEvent> AcceptWaiters { get; }
+        internal Dictionary<Guid, Connection> InConnections { get; set; }
+        internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
+        internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
         public Dispatcher(Uri FunctionAddress, string dispatcherId, ILogger logger, CancellationToken hostShutdownToken)
         {
@@ -138,16 +138,13 @@ namespace ConnectionTest.Algorithm
                         httpResponseMessage.StatusCode = HttpStatusCode.Accepted;
                         httpResponseMessage.Content = new PushStreamContent(async (Stream stream, HttpContent content, TransportContext context) =>
                         {
-                            var completionPromise = new TaskCompletionSource<bool>();
+                            var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                            var outChannel = new OutChannel()
-                            {
-                                DispatcherId = from,
-                                HttpResponseMessage = httpResponseMessage,
-                                Stream = stream,
-                                TerminateResponse = () => completionPromise.TrySetResult(true),
-                            };
-
+                            var outChannel = new OutChannel();
+                            outChannel.DispatcherId = from;
+                            outChannel.Stream = new StreamWrapper(stream, this, outChannel);
+                            outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
+                            
                             this.Worker.Submit(new NewChannelEvent()
                             {
                                 OutChannel = outChannel,

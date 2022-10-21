@@ -21,10 +21,12 @@ namespace ConnectionTest.Algorithm
         public enum Op
         {
             None,
-            TryConnect = 11,
-            ConnectSuccess = 22,
-            ConnectFail = 33, //TODO
-            Closed = 44,
+            Connect,
+            ConnectAndSolicit,
+            Accept,
+            AcceptAndSolicit,
+            ChannelFailed,
+            Closed,
         }
 
         const int packetSize = 17;
