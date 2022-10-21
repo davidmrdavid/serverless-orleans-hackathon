@@ -10,6 +10,7 @@ namespace ConnectionTest.Algorithm
     using Microsoft.Extensions.Azure;
     using Microsoft.Extensions.Logging;
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
@@ -35,6 +36,7 @@ namespace ConnectionTest.Algorithm
         // channels
         internal SortedDictionary<string, Queue<OutChannel>> ChannelPools { get; set; }
         internal List<DispatcherEvent> OutChannelWaiters { get; set; }
+        internal ConcurrentDictionary<Guid, InChannel> InChannelListeners { get; set; }
 
         // client
         internal Dictionary<Guid, ClientConnectEvent> ConnectRequests { get; set; }
@@ -57,6 +59,7 @@ namespace ConnectionTest.Algorithm
             this.HttpClient = new HttpClient();
             this.HttpClient.DefaultRequestHeaders.Add("DispatcherId", this.DispatcherId);
             this.ChannelPools = new SortedDictionary<string, Queue<OutChannel>>();
+            this.InChannelListeners = new ConcurrentDictionary<Guid, InChannel>();
             this.OutChannelWaiters = new List<DispatcherEvent>();
             this.ConnectRequests = new Dictionary<Guid, ClientConnectEvent>();
             this.OutConnections = new Dictionary<Guid, Connection>();
@@ -74,7 +77,8 @@ namespace ConnectionTest.Algorithm
         public string PrintInformation(bool includeIdentity = false)
         {
             var poolSizes = string.Join(",", this.ChannelPools.Values.Select(q => q.Count.ToString()));
-            return $"{(includeIdentity? this.ToString() + " " : "")}ChPool=[{poolSizes}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
+            var chListeners = string.Join(",", this.InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).Select(g => g.Count()));
+            return $"{(includeIdentity? this.ToString() + " " : "")}ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
                 + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}";
         }
 
