@@ -8,13 +8,13 @@ namespace ConnectionTest.Algorithm
     using System.Net.Http;
     using System.Threading.Tasks;
 
-    public class OutChannel : Channel
+    public class Channel : IDisposable
     {
-        public Action TerminateResponse;
+        public string DispatcherId;
+        public StreamWrapper Stream;
+        public Guid ConnectionId;
+        public bool Disposed;
 
-        public override void Dispose()
-        {
-            TerminateResponse();
-        }
+        public virtual void Dispose() { }
     }
 }

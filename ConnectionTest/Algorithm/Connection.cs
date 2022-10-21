@@ -8,18 +8,47 @@ namespace ConnectionTest.Algorithm
     using System.Net.Http;
     using System.Threading.Tasks;
 
+    /// <summary>
+    /// one end of a bidirectional connection
+    /// </summary>
     public class Connection
     {
+        /// <summary>
+        /// A unique identifier for this connection
+        /// </summary>
         public Guid ConnectionId { get; internal set; }
 
+        /// <summary>
+        /// The incoming stream
+        /// </summary>
         public Stream InStream => InChannel.Stream;
 
+        /// <summary>
+        /// The outgoing stream
+        /// </summary>
         public Stream OutStream => OutChannel.Stream;
 
+        /// <summary>
+        /// Whether we are on the server end of the connection (i.e. the place that called accept)
+        /// or the client end (i.e. the place that called connect)
+        /// </summary>
         public bool IsServerSide { get; internal set; }
 
-        internal InChannel InChannel { get; set; }
+        public event Action OnFailure;
 
-        internal OutChannel OutChannel { get; set; }
+        // the channel pair
+        internal InChannel InChannel;
+        internal OutChannel OutChannel;
+
+        internal void FailureNotify()
+        {
+            if (this.OnFailure != null)
+            {
+                Task.Run(() => this.OnFailure());
+            }
+        }
+
+        internal bool ContainsChannel(Channel channel)
+            => channel == this.InChannel || channel == this.OutChannel;
     }
 }

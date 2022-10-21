@@ -17,11 +17,13 @@ namespace ConnectionTest.Algorithm
 
     internal class ServerConnectEvent : DispatcherEvent
     {
-        public Guid ConnectionId { get; set; }
+        public Guid ConnectionId;
+        public InChannel InChannel;
+        public OutChannel OutChannel;
+        public bool DoServerBroadcast;
+        public bool DoClientBroadcast;
 
-        public InChannel InChannel { get; set; }
-
-        public OutChannel OutChannel { get; set; }
+        public override bool CancelWithConnection(Guid connectionId) => connectionId == this.ConnectionId;
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
@@ -38,6 +40,7 @@ namespace ConnectionTest.Algorithm
                     if (queue.Count == 0)
                     {
                         dispatcher.OutChannels.Remove(this.InChannel.DispatcherId);
+                        DoClientBroadcast = true;
                     }
                     this.OutChannel.ConnectionId = this.ConnectionId;
                 }
@@ -49,6 +52,11 @@ namespace ConnectionTest.Algorithm
             if (dispatcher.AcceptQueue.TryDequeue(out ServerAcceptEvent acceptEvent))
             {
                 await acceptEvent.ProcessAsync(dispatcher);
+            }
+          
+            if (this.DoServerBroadcast)
+            {
+                TimerEvent.MakeContactAsync(dispatcher);
             }
         }
     }

@@ -18,25 +18,35 @@ namespace ConnectionTest.Algorithm
 
     internal class TimerEvent : DispatcherEvent
     {
+        private readonly Random random = new Random();
+        private int count = 0;
+
         public override ValueTask ProcessAsync(Dispatcher dispatcher)
         {
             dispatcher.Logger.LogDebug($"{dispatcher} Processing TimerEvent");
+            
+            MakeContactAsync(dispatcher);
 
-            this.MakeContactAsync(dispatcher, 2); // temporary, for testing
-
-            this.Reschedule(dispatcher, TimeSpan.FromSeconds(100000));
+            TimeSpan nextBroadcast;
+            if (count < 5)
+            {
+                nextBroadcast = TimeSpan.FromSeconds(5); 
+            }
+            else
+            {
+                nextBroadcast = TimeSpan.FromSeconds(60 + random.Next(30));
+            }
+           
+            this.Reschedule(dispatcher, nextBroadcast);
 
             return default;
         }
 
-        void MakeContactAsync(Dispatcher dispatcher, int numRequests)
+        internal static void MakeContactAsync(Dispatcher dispatcher)
         {
-            //var ub = new UriBuilder(dispatcher.FunctionAddress);
-            //var uriBuilder = new UriBuilder(dispatcher.FunctionAddress);
-            //var paramValues = HttpUtility.ParseQueryString(uriBuilder.Query);
-            //paramValues.Add("from", dispatcher.Id);
-            //uriBuilder.Query = paramValues.ToString();
-            //var uri = uriBuilder.Uri;
+            int knownRemotes = dispatcher.OutChannels.Count;
+            int couponCollectorEx = (int)Math.Round(knownRemotes * Math.Log(knownRemotes + 1));
+            int numRequests = Math.Max(couponCollectorEx, 5);
 
             int numSuccessful = 0;
             for (int i = 0; i < numRequests; i++)
@@ -50,7 +60,7 @@ namespace ConnectionTest.Algorithm
             dispatcher.Logger.LogDebug($"{dispatcher} sent {numRequests} contact requests");
         }
 
-        bool MakeContactAsync(Dispatcher dispatcher, Uri target)
+        static bool MakeContactAsync(Dispatcher dispatcher, Uri target)
         {
             try
             {

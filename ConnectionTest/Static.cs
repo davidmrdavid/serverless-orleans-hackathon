@@ -7,41 +7,61 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using ConnectionTest.Algorithm;
+using System.Net;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using Orleans.Runtime;
+using System.Transactions;
 
 namespace ConnectionTest
 {
+    /// <summary>
+    /// This class is used for starting a single dispatcher and silo on each host
+    /// </summary>
     internal class Static
     {
-        // singleton instance of the dispatcher
-        static Dispatcher dispatcher;
+        static int started = 0;
+ 
+        static TaskCompletionSource<Dispatcher> DispatcherPromise = new TaskCompletionSource<Dispatcher>();
+        static TaskCompletionSource<Silo> SiloPromise = new TaskCompletionSource<Silo>();
 
-        public static HttpResponseMessage Dispatch(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
+        public static Task<Silo> GetSiloAsync() => SiloPromise.Task;
+
+        public static async Task<HttpResponseMessage> DispatchAsync(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
         {
             // start the dispatcher if we haven't already on this worker
-            if (dispatcher == null)
+            if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
             {
-                Uri functionAddress = requestMessage.RequestUri;
-                string dispatcherId = $"{Environment.MachineName} {DateTime.UtcNow:o}";
-
-                var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
-
-                // use an interlocked operation to prevent two dispatchers being started
-                if (Interlocked.CompareExchange(ref dispatcher, newDispatcher, null) == null)
-                {
-                    // start the dispatcher
-                    newDispatcher.StartChannels();
-
-                    // start orleans silo
-                    Silo.StartOnThreadpool(newDispatcher);
-                }
-                else
-                {
-                    // we lost the race, someone else created the dispatcher
-                    newDispatcher.Dispose();
-                }
+                var address = IPAddress.Parse($"0.0.0.0"); // todo we need this host's address
+                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, 1, logger, hostShutdownToken));
             }
 
+            var dispatcher = await DispatcherPromise.Task.ConfigureAwait(false);
             return dispatcher.Dispatch(requestMessage);
+        }
+
+        public static async Task StartSiloAndDispatcher(HttpRequestMessage requestMessage, IPAddress address, int port, ILogger logger, CancellationToken hostShutdownToken)
+        {
+            try
+            {
+                Uri functionAddress = requestMessage.RequestUri;
+                string siloEndpoint = $"{address}:{port}";
+                string dispatcherId = $"{siloEndpoint} {DateTime.UtcNow:o}";
+
+                var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
+                newDispatcher.StartChannels();
+                DispatcherPromise.SetResult(newDispatcher);
+
+                var connectionFactory = new ConnectionFactory(newDispatcher);
+                var silo = new Silo();
+                await silo.StartAsync(address, port, connectionFactory, hostShutdownToken);
+                SiloPromise.SetResult(silo);
+            }
+            catch (Exception e)
+            {
+                DispatcherPromise.TrySetException(e);
+                SiloPromise.TrySetException(e);
+            }
         }
     }
 }

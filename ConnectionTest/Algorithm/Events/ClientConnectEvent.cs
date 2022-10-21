@@ -7,6 +7,7 @@ namespace ConnectionTest.Algorithm
     using Microsoft.Extensions.Logging;
     using System;
     using System.Collections.Generic;
+    using System.Data.Common;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
@@ -17,12 +18,11 @@ namespace ConnectionTest.Algorithm
     internal class ClientConnectEvent : DispatcherEvent
     {
         public Guid ConnectionId;
-
         public string ToMachine;
-
         public TaskCompletionSource<Connection> Response;
-
         public OutChannel OutChannel;
+
+        public override bool CancelWithConnection(Guid connectionId) => connectionId == this.ConnectionId;
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
@@ -30,6 +30,7 @@ namespace ConnectionTest.Algorithm
 
             if (key == null)
             {
+                dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} queued", dispatcher, this.ToMachine);
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
@@ -45,7 +46,22 @@ namespace ConnectionTest.Algorithm
        
                 dispatcher.ConnectRequests.Add(this.ConnectionId, this);
 
-                await Format.SendAsync(this.OutChannel.Stream, Format.Op.TryConnect, this.ConnectionId);
+                try
+                {
+                    await Format.SendAsync(
+                        this.OutChannel.Stream,
+                        queue.Count() == 0 ? Format.Op.ConnectAndSolicit : Format.Op.Connect,
+                        this.ConnectionId);
+
+                    dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} sent", dispatcher, this.ToMachine);
+                }
+                catch (Exception exception)
+                {
+                    dispatcher.Logger.LogWarning("{dispatcher} could not send Connect message: {exception}", dispatcher, exception);
+
+                    // we can retry this
+                    dispatcher.Worker.Submit(this);
+                }
             }
         }
     }
