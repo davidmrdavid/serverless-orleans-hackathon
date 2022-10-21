@@ -22,7 +22,7 @@ namespace ConnectionTest
         // singleton instance of the dispatcher
         internal static TaskCompletionSource<Dispatcher> DispatcherPromise = null;
 
-        public static async ValueTask<HttpResponseMessage> DispatchAsync(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
+        public static async Task<HttpResponseMessage> DispatchAsync(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
         {
             // start the dispatcher if we haven't already on this worker
             if (DispatcherPromise == null)

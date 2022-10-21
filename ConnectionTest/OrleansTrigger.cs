@@ -25,12 +25,12 @@ namespace ConnectionTest
         /// <param name="logger">A logger for displaying log messages.</param>
         /// <returns></returns>
         [FunctionName("Orleans")]
-        public static ValueTask<HttpResponseMessage> OrleansAsync(
+        public static async Task<HttpResponseMessage> Orleans(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orleans")] HttpRequestMessage req,
             CancellationToken shutDownToken,
             ILogger logger)
         {
-            return Static.DispatchAsync(req, logger, shutDownToken);
+            return await Static.DispatchAsync(req, logger, shutDownToken);
         }
     }
 }
