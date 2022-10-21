@@ -8,7 +8,7 @@
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="6.0.0" />
-    <PackageReference Include="Microsoft.Orleans.Core" Version="3.6.6-hackathon18" />
+    <PackageReference Include="Microsoft.Orleans.Core" Version="3.6.6-hackathon20" />
     <PackageReference Include="Microsoft.Orleans.CodeGenerator.MSBuild" Version="3.6.5">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers</IncludeAssets>

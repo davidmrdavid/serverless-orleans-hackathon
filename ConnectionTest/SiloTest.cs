@@ -20,6 +20,7 @@ namespace ConnectionTest
     using System.Runtime.CompilerServices;
     using System.Web.Http;
     using System.Transactions;
+    using Orleans.Runtime.Configuration;
 
     public static class SiloTest
     {
@@ -35,6 +36,10 @@ namespace ConnectionTest
             CancellationToken cancellationToken,
             ILogger log)
         {
+
+            IPAddress ip = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
+            Console.WriteLine(ip.ToString());
+            log.LogWarning($"You have reached IP = {ip}");
 
             if (started == 0)
             {

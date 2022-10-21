@@ -11,6 +11,9 @@ namespace ConnectionTest
     using System.Threading;
     using Orleans.Runtime;
     using Microsoft.Extensions.DependencyInjection;
+    using Orleans.Runtime.Configuration;
+    using System.Net;
+    using System;
 
     public static class OrleansTrigger
     {
