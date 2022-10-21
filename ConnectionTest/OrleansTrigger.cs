@@ -11,6 +11,7 @@ namespace ConnectionTest
     using System.Threading;
     using Orleans.Runtime;
     using Microsoft.Extensions.DependencyInjection;
+    using Microsoft.AspNetCore.Mvc;
 
     public static class OrleansTrigger
     {
@@ -23,14 +24,16 @@ namespace ConnectionTest
         /// <param name="req">The http request. The request Uri is used to reach all workers via load balancer.</param>
         /// <param name="shutDownToken">A cancellation token that will shut down this Orleans worker permanently.</param>
         /// <param name="logger">A logger for displaying log messages.</param>
-        /// <returns></returns>
+        /// <returns></returns>`
         [FunctionName("Orleans")]
-        public static ValueTask<HttpResponseMessage> OrleansAsync(
+        public static async Task<HttpResponseMessage> OrleansAsync(
             [HttpTrigger(AuthorizationLevel.Anonymous, "get", Route = "orleans")] HttpRequestMessage req,
             CancellationToken shutDownToken,
             ILogger logger)
         {
-            return Static.DispatchAsync(req, logger, shutDownToken);
+            var b = await Static.DispatchAsync(req, logger, shutDownToken);
+            return b;
+            //return new ValueTask<HttpResponseMessage>(new HttpResponseMessage());
         }
     }
 }
