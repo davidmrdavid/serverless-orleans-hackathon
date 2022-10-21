@@ -20,14 +20,16 @@ namespace ConnectionTest
     using System.Runtime.CompilerServices;
     using System.Web.Http;
 
-    public static class ConnectionTest
+    public static class DispatcherTest
     {
-        // call this function as follows from command line:
-        // curl http://localhost:7195/connectiontest/
+        // execute tests for dispatcher
+        // curl http://localhost:7195/startdispatchers/2
+        // curl http://localhost:7195/testdispatchers/0-to-1
 
-        [FunctionName("ConnectionTest")]
-        public static HttpResponseMessage RunConnectionTest(
-            [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "connectiontest")] HttpRequestMessage req,
+        [FunctionName("StartDispatchers")]
+        public static HttpResponseMessage StartDispatchers(
+            [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "startdispatchers/{numDispatchers}")] HttpRequestMessage req,
+            int numDispatchers,
             CancellationToken cancellationToken,
             ILogger log)
         {
@@ -58,9 +60,9 @@ namespace ConnectionTest
             return dispatcher.Dispatch(req);
         }
 
-        [FunctionName("ConnectionTestScenario")]
-        public static async Task<IActionResult> ConnectionTestScenario(
-           [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "connectiontest/{scenario}")] HttpRequest req,
+        [FunctionName("TestDispatchers")]
+        public static async Task<IActionResult> TestDispatchers(
+           [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "testdispatchers/{scenario}")] HttpRequest req,
            string scenario,
            ILogger log)
         {
@@ -119,7 +121,6 @@ namespace ConnectionTest
         }
 
 
-        const int numDispatchers = 2;
         static Dispatcher[] dispatchers;
         static ConnectionFactory[] connectionFactories;
         static int pos;
@@ -136,7 +137,7 @@ namespace ConnectionTest
             lock (dispatchers)
             {
                 var dispatcher = dispatchers[pos];
-                pos = (pos + 1) % numDispatchers;
+                pos = (pos + 1) % dispatchers.Length;
                 return dispatcher;
             }
         }
