@@ -30,14 +30,10 @@ namespace ConnectionTest
         public static async Task<HttpResponseMessage> DispatchAsync(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
         {
             // start the dispatcher if we haven't already on this worker
-            if (started == 0)
+            if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
             {
-                // use an interlocked operation to prevent two dispatchers being started
-                if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
-                {
-                    var address = IPAddress.Parse($"0.0.0.0"); // todo we need this host's address
-                    var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, 1, logger, hostShutdownToken));
-                }
+                var address = IPAddress.Parse($"0.0.0.0"); // todo we need this host's address
+                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, 1, logger, hostShutdownToken));
             }
 
             var dispatcher = await DispatcherPromise.Task.ConfigureAwait(false);
