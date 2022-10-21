@@ -15,7 +15,7 @@ namespace ConnectionTest.Algorithm
             var _ = ScheduleNextPassAsync();
             async Task ScheduleNextPassAsync()
             {
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                await Task.Delay(delay);
                 dispatcher.Worker.Submit(this);
             }
         }

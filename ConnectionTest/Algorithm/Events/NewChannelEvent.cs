@@ -21,9 +21,9 @@ namespace ConnectionTest.Algorithm
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            if (!dispatcher.OutChannels.TryGetValue(this.OutChannel.DispatcherId, out var queue))
+            if (!dispatcher.ChannelPools.TryGetValue(this.OutChannel.DispatcherId, out var queue))
             {
-                dispatcher.OutChannels.Add(this.OutChannel.DispatcherId, queue = new Queue<OutChannel>());
+                dispatcher.ChannelPools.Add(this.OutChannel.DispatcherId, queue = new Queue<OutChannel>());
             }
 
             queue.Enqueue(this.OutChannel);
@@ -46,6 +46,7 @@ namespace ConnectionTest.Algorithm
             else if (queue.Count > maxPool)
             {
                 var obsoleteChannel = queue.Dequeue();
+                dispatcher.Logger.LogTrace("{dispatcher} disposing obsolete channel to {destination}", dispatcher, obsoleteChannel.DispatcherId);
                 obsoleteChannel.Dispose();
             }
         }

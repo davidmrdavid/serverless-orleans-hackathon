@@ -55,7 +55,7 @@ namespace ConnectionTest
 
                 var connectionFactory = new ConnectionFactory(newDispatcher);
                 var silo = new Silo();
-                await silo.StartAsync(address, port, connectionFactory, hostShutdownToken);
+                await silo.StartAsync("my-first-cluster", address, port, connectionFactory, hostShutdownToken);
                 SiloPromise.SetResult(silo);
             }
             catch (Exception e)

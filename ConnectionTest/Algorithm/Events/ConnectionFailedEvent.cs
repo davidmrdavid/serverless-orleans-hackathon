@@ -59,7 +59,7 @@ namespace ConnectionTest.Algorithm
 
             if (ToSend != null)
             {
-                if (!dispatcher.OutChannels.TryGetValue(ToSend, out var queue))
+                if (!dispatcher.ChannelPools.TryGetValue(ToSend, out var queue))
                 {
                     dispatcher.OutChannelWaiters.Add(this);
                 }

@@ -35,7 +35,7 @@ namespace ConnectionTest.Algorithm
 
                 dispatcher.InConnections.Add(connection.ConnectionId, connection);
 
-                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect from {destination} accepted, connection established", dispatcher, connection.ConnectionId, connection.InChannel.DispatcherId);
+                dispatcher.Logger.LogInformation("{dispatcher} {connectionId:N} connect from {destination} accepted, established", dispatcher, connection.ConnectionId, connection.InChannel.DispatcherId);
 
                 try
                 {

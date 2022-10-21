@@ -32,7 +32,7 @@ namespace ConnectionTest.Algorithm
 
                 dispatcher.OutConnections.Add(this.ConnectionId, connection);
 
-                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} accept received, connection established", dispatcher, this.ConnectionId);
+                dispatcher.Logger.LogInformation("{dispatcher} {connectionId:N} accept received, connection established", dispatcher, this.ConnectionId);
 
                 request.Response.SetResult(connection);
 

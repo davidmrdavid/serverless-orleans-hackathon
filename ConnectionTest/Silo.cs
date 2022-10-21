@@ -32,7 +32,7 @@ namespace ConnectionTest
         {
         }
 
-        internal async Task StartAsync(IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken)
+        internal async Task StartAsync(string clusterId, IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken)
         {
             this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
 
@@ -40,7 +40,7 @@ namespace ConnectionTest
                 .UseOrleans(builder => builder
                     .Configure<ClusterOptions>(options =>
                     {
-                        options.ClusterId = "my-first-cluster";
+                        options.ClusterId = clusterId;
                         options.ServiceId = "MyAwesomeOrleansService";
                     })
                     .Configure<EndpointOptions>(options =>

@@ -5,7 +5,7 @@
       "Function.ConnectionTest": "Warning",
       "Function.ConnectionTest.User": "Information",
       "Function.startsilos": "Warning",
-      "Function.startsilos.User": "Information",
+      "Function.startsilos.User": "Debug",
       "Function.Orleans": "Warning",
       "Function.Orleans.User": "Information"
     }

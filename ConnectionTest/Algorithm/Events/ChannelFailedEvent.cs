@@ -39,8 +39,7 @@ namespace ConnectionTest.Algorithm
             }
             else
             {       
-                Util.FilterQueues(dispatcher.OutChannels, x => x != this.Channel);
-
+                Util.FilterQueues(dispatcher.ChannelPools, x => x != this.Channel);
                 this.Channel.Dispose();
             }
         }

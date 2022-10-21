@@ -72,7 +72,7 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static Queue<T> FilterQueue<T>(Queue<T> queue, Func<T, bool> predicate)
+        public static Queue<T> FilterQueue<T>(Queue<T> queue, Func<T, bool> predicate, Action<T> action = null)
         {
             if (queue.Any(element => !predicate(element)))
             {
@@ -82,6 +82,10 @@ namespace ConnectionTest.Algorithm
                     if (predicate(element))
                     {
                         newQueue.Enqueue(element);
+                    }
+                    else if (action != null)
+                    {
+                        action(element);
                     }
                 }
                 return newQueue;

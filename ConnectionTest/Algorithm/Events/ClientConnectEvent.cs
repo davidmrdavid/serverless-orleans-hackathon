@@ -27,20 +27,20 @@ namespace ConnectionTest.Algorithm
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            var key = dispatcher.OutChannels.Keys.LastOrDefault((string s) => s.StartsWith(this.ToMachine));
+            var key = dispatcher.ChannelPools.Keys.LastOrDefault((string s) => s.StartsWith(this.ToMachine));
 
             if (key == null)
             {
-                dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
+                dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
             {
-                var queue = dispatcher.OutChannels[key];
+                var queue = dispatcher.ChannelPools[key];
                 this.OutChannel = queue.Dequeue();
                 if (queue.Count == 0)
                 {
-                    dispatcher.OutChannels.Remove(key);
+                    dispatcher.ChannelPools.Remove(key);
                 }
 
                 this.OutChannel.ConnectionId = this.ConnectionId;
@@ -54,7 +54,7 @@ namespace ConnectionTest.Algorithm
                         queue.Count() == 0 ? Format.Op.ConnectAndSolicit : Format.Op.Connect,
                         this.ConnectionId);
 
-                    dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N}  to {destination} sent", dispatcher, this.ConnectionId, this.ToMachine);
+                    dispatcher.Logger.LogInformation("{dispatcher} {connectionId:N}  to {destination} sent", dispatcher, this.ConnectionId, this.ToMachine);
                 }
                 catch (Exception exception)
                 {

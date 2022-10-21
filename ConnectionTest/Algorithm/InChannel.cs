@@ -51,6 +51,7 @@ namespace ConnectionTest.Algorithm
                                 ConnectionId = channel.ConnectionId,
                                 InChannel = channel,
                                 DoServerBroadcast = (op == Format.Op.ConnectAndSolicit),
+                                Issued = DateTime.UtcNow,
                             });
                             // now streaming data from client to server
                             return;

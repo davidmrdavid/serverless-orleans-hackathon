@@ -33,7 +33,7 @@ namespace ConnectionTest.Algorithm
         IDisposable cancellationTokenRegistration;
 
         // channels
-        internal SortedDictionary<string, Queue<OutChannel>> OutChannels { get; set; }
+        internal SortedDictionary<string, Queue<OutChannel>> ChannelPools { get; set; }
         internal List<DispatcherEvent> OutChannelWaiters { get; set; }
 
         // client
@@ -56,7 +56,7 @@ namespace ConnectionTest.Algorithm
             this.DispatcherIdBytes = GetBytes(this.DispatcherId);
             this.HttpClient = new HttpClient();
             this.HttpClient.DefaultRequestHeaders.Add("DispatcherId", this.DispatcherId);
-            this.OutChannels = new SortedDictionary<string, Queue<OutChannel>>();
+            this.ChannelPools = new SortedDictionary<string, Queue<OutChannel>>();
             this.OutChannelWaiters = new List<DispatcherEvent>();
             this.ConnectRequests = new Dictionary<Guid, ClientConnectEvent>();
             this.OutConnections = new Dictionary<Guid, Connection>();
@@ -73,10 +73,9 @@ namespace ConnectionTest.Algorithm
 
         public string PrintInformation()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine($"{this} Ch={this.OutChannels.Count} ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
-                + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}");
-            return sb.ToString();
+            var poolSizes = string.Join(",", this.ChannelPools.Values.Select(q => q.Count.ToString()));
+            return $"ChPool=[{poolSizes}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
+                + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}";
         }
 
         public override string ToString()

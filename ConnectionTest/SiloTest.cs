@@ -49,8 +49,10 @@ namespace ConnectionTest
 
                     startupPromise.SetResult(true);
 
+                    string clusterId = $"my-cluster-{Guid.NewGuid()}";
+
                     var tasks = groups
-                       .Select((g, i) => g.StartAsync(req, i, log, cancellationToken))
+                       .Select((g, i) => g.StartAsync(req, clusterId, i, log, cancellationToken))
                        .ToList();
                 }
             }
@@ -123,11 +125,12 @@ namespace ConnectionTest
             public Task<Dispatcher> GetDispatcherAsync() => dispatcherPromise.Task;
             public Task<Silo> GetSiloAsync() => siloPromise.Task;
 
-            public async Task StartAsync(HttpRequestMessage requestMessage, int index, ILogger logger, CancellationToken hostShutdownToken)
+            public async Task StartAsync(HttpRequestMessage requestMessage, string clusterId, int index, ILogger logger, CancellationToken hostShutdownToken)
             {
+
                 Uri functionAddress = requestMessage.RequestUri;
                 var address = IPAddress.Parse($"{index + 1}.{index + 1}.{index + 1}.{index + 1}");
-                int port = index + 1;
+                int port = (new Random()).Next(99999) + 1;
                 string siloEndpoint = $"{address}:{port}";
                 string dispatcherIdPrefix = siloEndpoint;
                 string dispatcherIdSuffix = DateTime.UtcNow.ToString("O");
@@ -138,10 +141,10 @@ namespace ConnectionTest
 
                 var connectionFactory = new ConnectionFactory(newDispatcher);
                 var silo = new Silo();
-                await silo.StartAsync(address, port, connectionFactory, hostShutdownToken);
-                siloPromise.SetResult(silo);
-
+                logger.LogWarning($"starting silo {index} on {newDispatcher}");
+                await silo.StartAsync(clusterId, address, port, connectionFactory, hostShutdownToken);
                 logger.LogWarning($"Silo {index} started successfully {newDispatcher.DispatcherId}");
+                siloPromise.SetResult(silo);
             }
         }
     }
