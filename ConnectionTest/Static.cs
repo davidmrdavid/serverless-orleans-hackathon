@@ -13,6 +13,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Orleans.Runtime;
 using System.Transactions;
 using Orleans.Runtime.Configuration;
+using Microsoft.AspNetCore.Http.Extensions;
 
 namespace ConnectionTest
 {
@@ -33,20 +34,34 @@ namespace ConnectionTest
             // start the dispatcher if we haven't already on this worker
             if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
             {
-                IPAddress address = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
-                int port = new Random().Next(99999) + 1;
-                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, address, port, logger, hostShutdownToken));
+                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, logger, hostShutdownToken));
             }
 
             var dispatcher = await DispatcherPromise.Task.ConfigureAwait(false);
             return dispatcher.Dispatch(requestMessage);
         }
 
-        public static async Task StartSiloAndDispatcher(HttpRequestMessage requestMessage, IPAddress address, int port, ILogger logger, CancellationToken hostShutdownToken)
+        public static async Task StartSiloAndDispatcher(HttpRequestMessage requestMessage, ILogger logger, CancellationToken hostShutdownToken)
         {
             try
             {
-                Uri functionAddress = requestMessage.RequestUri;
+                var query = requestMessage.RequestUri.ParseQueryString();
+                string dispatcherOnlyValue = query["dispatcherOnly"];
+                bool.TryParse(dispatcherOnlyValue, out bool dispatcherOnly);
+                string clusterIdValue = query["clusterId"];
+
+                // to construct the generic entry point, we have to remove the channel ID from the query
+                UriBuilder builder = new UriBuilder(requestMessage.RequestUri);
+                QueryBuilder queryBuilder = new QueryBuilder();
+                foreach (String s in query.AllKeys)
+                    if (s != "channelId")
+                        queryBuilder.Add(s, query[s]);
+                builder.Query = queryBuilder.ToString();
+                var functionAddress = builder.Uri;
+
+                IPAddress address = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
+                int port = new Random().Next(9999) + 1;
+
                 string siloEndpoint = $"{address}:{port}";
                 string dispatcherIdPrefix = $"{siloEndpoint}";
                 string dispatcherIdSuffix = $"{DateTime.UtcNow:o}";
@@ -55,10 +70,13 @@ namespace ConnectionTest
                 newDispatcher.StartChannels();
                 DispatcherPromise.SetResult(newDispatcher);
 
-                var connectionFactory = new ConnectionFactory(newDispatcher);
-                var silo = new Silo();
-                await silo.StartAsync("my-first-cluster", address, port, connectionFactory, hostShutdownToken, logger);
-                SiloPromise.SetResult(silo);
+                if (!dispatcherOnly)
+                {
+                    var connectionFactory = new ConnectionFactory(newDispatcher);
+                    var silo = new Silo();
+                    await silo.StartAsync(clusterIdValue ?? "my-first-cluster", address, port, connectionFactory, hostShutdownToken, logger);
+                    SiloPromise.SetResult(silo);
+                } 
             }
             catch (Exception e)
             {

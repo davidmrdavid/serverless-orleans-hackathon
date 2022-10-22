@@ -43,6 +43,8 @@ namespace ConnectionTest.Algorithm
                     await evt.ProcessAsync(dispatcher);
                 }
 
+                this.Channel.Dispose();
+
                 Util.FilterDictionary(  
                     dispatcher.ConnectRequests, 
                     req => req.OutChannel.ChannelId != this.ChannelId,
@@ -51,8 +53,6 @@ namespace ConnectionTest.Algorithm
             else
             {
                 Util.FilterQueues(dispatcher.ChannelPools, x => x.ChannelId != this.ChannelId);
-
-                this.Channel.Dispose();
 
                 if (!dispatcher.ChannelPools.TryGetValue(this.DispatcherId, out var queue))
                 {

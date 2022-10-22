@@ -7,9 +7,9 @@
       "Function.startdispatchers": "Warning",
       "Function.startdispatchers.User": "Debug",
       "Function.startsilos": "Warning",
-      "Function.startsilos.User": "Debug",
+      "Function.startsilos.User": "Trace",
       "Function.Orleans": "Warning",
-      "Function.Orleans.User": "Information"
+      "Function.Orleans.User": "Trace"
     }
   },
   "extensions": {

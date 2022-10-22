@@ -27,6 +27,7 @@ namespace ConnectionTest.Algorithm
                 if (stream.GetType().Name == "EmptyReadStream")
                 {
                     // avoid exception throwing path in common case
+                    dispatcher.Logger.LogTrace("{dispatcher} {channelId} empty content", dispatcher, channelId);
                     return;
                 }
 
@@ -35,14 +36,19 @@ namespace ConnectionTest.Algorithm
                     var reader = new BinaryReader(stream);
                     channel.DispatcherId = reader.ReadString();
                 }
-                catch (System.IO.EndOfStreamException)
+                catch (System.IO.EndOfStreamException e)
                 {
+                    dispatcher.Logger.LogTrace("{dispatcher} {channelId} empty content: {message}", dispatcher, channelId, e.Message);
                     return;
                 }
 
                 while (!dispatcher.HostShutdownToken.IsCancellationRequested)
                 {
+                    dispatcher.Logger.LogTrace("{dispatcher} {channelId} waiting for packet", dispatcher, channelId);
+
                     (Format.Op op, Guid guid) = await Format.ReceiveAsync(stream, dispatcher.HostShutdownToken);
+
+                    dispatcher.Logger.LogTrace("{dispatcher} {channelId} received packet {op} {guid}", dispatcher, channelId, op, guid);
 
                     switch (op)
                     {
@@ -75,6 +81,7 @@ namespace ConnectionTest.Algorithm
 
                         case Format.Op.Closed:
                             // now closed (without ever being used)
+                            dispatcher.Logger.LogTrace("{dispatcher} {channelId} channel closed by sender", dispatcher, channelId);
                             return;
 
                         case Format.Op.ChannelFailed:
@@ -84,7 +91,7 @@ namespace ConnectionTest.Algorithm
                                 DispatcherId = channel.DispatcherId,
                             });
                             // we can continue listening on this stream
-                            break;
+                            continue;
 
                         case Format.Op.ConnectionFailed:
                             dispatcher.Worker.Submit(new ConnectionFailedEvent()
@@ -92,7 +99,7 @@ namespace ConnectionTest.Algorithm
                                 ConnectionId = guid,
                             });
                             // we can continue listening on this stream
-                            break;
+                            continue;
                     }
                 }
             }
@@ -104,7 +111,7 @@ namespace ConnectionTest.Algorithm
                     DispatcherId = dispatcher.DispatcherId,
 
                 });
-                dispatcher.Logger.LogWarning("Dispatcher {dispatcherId} encountered exception in ListenAsync: {exception}", dispatcher.DispatcherId, exception);
+                dispatcher.Logger.LogWarning("{dispatcher} {channelId} error in ListenAsync: {exception}", dispatcher, channelId, exception);
             }
             finally
             {

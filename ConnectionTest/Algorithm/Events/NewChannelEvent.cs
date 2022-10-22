@@ -28,10 +28,10 @@ namespace ConnectionTest.Algorithm
 
             queue.Enqueue(this.OutChannel);
 
+            dispatcher.Logger.LogTrace("{dispatcher} {channelId} added out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, this.OutChannel.DispatcherId);
+
             if (queue.Count == 1)
             {
-                dispatcher.Logger.LogInformation($"{dispatcher} added new channel to {this.OutChannel.DispatcherId}");
-
                 if (dispatcher.OutChannelWaiters.Count > 0)
                 {
                     // we may have unblocked a channel waiter. Rerun them all.
@@ -45,9 +45,9 @@ namespace ConnectionTest.Algorithm
             }
             else if (queue.Count > maxPool)
             {
-                var obsoleteChannel = queue.Dequeue();
-                dispatcher.Logger.LogTrace("{dispatcher} disposing obsolete channel to {destination}", dispatcher, obsoleteChannel.DispatcherId);
-                obsoleteChannel.Dispose();
+                var excessChannel = queue.Dequeue();
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} removed excess out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, excessChannel.DispatcherId);
+                excessChannel.Dispose();
             }
         }
     }

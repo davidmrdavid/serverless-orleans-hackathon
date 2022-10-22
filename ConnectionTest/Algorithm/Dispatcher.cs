@@ -12,6 +12,7 @@ namespace ConnectionTest.Algorithm
     using System;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Data.Common;
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -74,11 +75,11 @@ namespace ConnectionTest.Algorithm
             this.Worker.Submit(new TimerEvent());
         }
 
-        public string PrintInformation(bool includeIdentity = false)
+        public string PrintInformation()
         {
             var poolSizes = string.Join(",", this.ChannelPools.Values.Select(q => q.Count.ToString()));
             var chListeners = string.Join(",", this.InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).Select(g => g.Count()));
-            return $"{(includeIdentity? this.ToString() + " " : "")}ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
+            return $"ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
                 + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}";
         }
 
@@ -113,9 +114,6 @@ namespace ConnectionTest.Algorithm
             httpResponseMessage.RequestMessage = requestMessage;
             httpResponseMessage.Headers.Add("DispatcherId", this.DispatcherId);
 
-            //var query = requestMessage.RequestUri.ParseQueryString();
-            //string from = query["from"];
-
             try
             {
                 string from = null;
@@ -123,17 +121,23 @@ namespace ConnectionTest.Algorithm
 
                 if (requestMessage.Headers.TryGetValues("DispatcherId", out var values))
                 {
-                    from = values.FirstOrDefault();
                     var query = requestMessage.RequestUri.ParseQueryString();
+                    from = values.FirstOrDefault();
                     string channelIdString = query["channelId"];
-                    channelId = Guid.Parse(channelIdString);
+                    bool success = Guid.TryParse(channelIdString, out channelId);
+                    if (!success)
+                    {
+                        this.Logger.LogError("{dispatcher} bad request {request}: cannot parse '{channelIdString}'", this, requestMessage.RequestUri, channelIdString);
+                        httpResponseMessage.StatusCode = HttpStatusCode.BadRequest;
+                        return httpResponseMessage;
+                    }
                 }
 
                 if (from == null)
                 {
                     // this is a request sent from external admin, to start or inquire
                     httpResponseMessage.StatusCode = requestMessage.Method == HttpMethod.Get ? HttpStatusCode.OK : HttpStatusCode.Accepted;
-                    httpResponseMessage.Content = new StringContent(this?.PrintInformation(true) ?? "not started. Need to POST first, with service Url as argument.\n");
+                    httpResponseMessage.Content = new StringContent($"{this} {this.PrintInformation()}");
                 }
                 else
                 {
@@ -145,31 +149,41 @@ namespace ConnectionTest.Algorithm
                     else
                     {
                         // this is a request sent from some other worker. We keep the response channel open.
+                        this.Logger.LogTrace("{dispatcher} {channelId} contacted by {destination}", this, channelId, from);
                         httpResponseMessage.StatusCode = HttpStatusCode.Accepted;
                         httpResponseMessage.Content = new PushStreamContent(async (Stream stream, HttpContent content, TransportContext context) =>
                         {
-                            var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                            var outChannel = new OutChannel();
-                            outChannel.DispatcherId = from;
-                            outChannel.ChannelId = channelId;
-
-                            await stream.WriteAsync(this.DispatcherIdBytes);
-                            await stream.FlushAsync();
-
-                            outChannel.Stream = new StreamWrapper(stream, this, outChannel);
-                            outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
-                            
-                            this.Worker.Submit(new NewChannelEvent()
+                            try
                             {
-                                OutChannel = outChannel,
-                            });
+                                var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                            await completionPromise.Task;
-                            await stream.DisposeAsync();
+                                var outChannel = new OutChannel();
+                                outChannel.DispatcherId = from;
+                                outChannel.ChannelId = channelId;
+
+                                await stream.WriteAsync(this.DispatcherIdBytes);
+                                await stream.FlushAsync();
+
+                                outChannel.Stream = new StreamWrapper(stream, this, outChannel);
+                                outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
+
+                                this.Worker.Submit(new NewChannelEvent()
+                                {
+                                    OutChannel = outChannel,
+                                });
+
+                                await completionPromise.Task;
+                                await stream.FlushAsync();
+                                await stream.DisposeAsync();
+
+                                this.Logger.LogTrace("{dispatcher} {channelId} disposed", this, channelId);
+                            }
+                            catch (Exception exception)
+                            {
+                                this.Logger.LogWarning("{dispatcher} {channelId} error in PushStreamContent: {exception}", this, channelId, exception);
+                            }
                         });
                     }
-
                 }
             }
             catch (Exception exception)
@@ -207,16 +221,16 @@ namespace ConnectionTest.Algorithm
 
             protected override async Task Process(IList<DispatcherEvent> batch)
             {
-                try
+                foreach (var dispatcherEvent in batch)
                 {
-                    foreach (var dispatcherEvent in batch)
+                    try
                     {
                         await dispatcherEvent.ProcessAsync(dispatcher);
                     }
-                }
-                catch (Exception exception)
-                {
-                    this.dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception in processor: {exception}", this.dispatcher.DispatcherId, exception);
+                    catch (Exception exception)
+                    {
+                        this.dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception while processing {event}: {exception}", this.dispatcher.DispatcherId, dispatcherEvent, exception);
+                    }
                 }
             }
         }

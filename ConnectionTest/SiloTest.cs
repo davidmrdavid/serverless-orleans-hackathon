@@ -130,7 +130,7 @@ namespace ConnectionTest
 
                 Uri functionAddress = requestMessage.RequestUri;
                 var address = IPAddress.Parse($"{index + 1}.{index + 1}.{index + 1}.{index + 1}");
-                int port = (new Random()).Next(99999) + 1;
+                int port = (new Random()).Next(9999) + 1;
                 string siloEndpoint = $"{address}:{port}";
                 string dispatcherIdPrefix = siloEndpoint;
                 string dispatcherIdSuffix = DateTime.UtcNow.ToString("O");

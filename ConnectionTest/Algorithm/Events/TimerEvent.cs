@@ -66,10 +66,12 @@ namespace ConnectionTest.Algorithm
 
         static bool MakeContactAsync(Dispatcher dispatcher, Uri target)
         {
+            Guid channelId = Guid.NewGuid(); // the unique id for this channel
+
             try
             {
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} sending contact request", dispatcher, channelId);
                 // create channel id and add it to URI
-                Guid channelId = Guid.NewGuid();
                 var ub = new UriBuilder(dispatcher.FunctionAddress);
                 var uriBuilder = new UriBuilder(dispatcher.FunctionAddress);
                 var paramValues = HttpUtility.ParseQueryString(uriBuilder.Query);
@@ -84,7 +86,7 @@ namespace ConnectionTest.Algorithm
             }
             catch (Exception exception)
             {
-                dispatcher.Logger.LogWarning("{dispatcher} failed to send contact request: {exception}", dispatcher, exception);
+                dispatcher.Logger.LogWarning("{dispatcher} {channelId} failed to send contact request: {exception}", dispatcher, channelId, exception);
                 return false;
             }
         }
