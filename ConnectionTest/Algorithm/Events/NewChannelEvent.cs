@@ -21,17 +21,17 @@ namespace ConnectionTest.Algorithm
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            if (!dispatcher.OutChannels.TryGetValue(this.OutChannel.DispatcherId, out var queue))
+            if (!dispatcher.ChannelPools.TryGetValue(this.OutChannel.DispatcherId, out var queue))
             {
-                dispatcher.OutChannels.Add(this.OutChannel.DispatcherId, queue = new Queue<OutChannel>());
+                dispatcher.ChannelPools.Add(this.OutChannel.DispatcherId, queue = new Queue<OutChannel>());
             }
 
             queue.Enqueue(this.OutChannel);
 
+            dispatcher.Logger.LogTrace("{dispatcher} {channelId} added out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, this.OutChannel.DispatcherId);
+
             if (queue.Count == 1)
             {
-                dispatcher.Logger.LogInformation($"{dispatcher} added new channel to {this.OutChannel.DispatcherId}");
-
                 if (dispatcher.OutChannelWaiters.Count > 0)
                 {
                     // we may have unblocked a channel waiter. Rerun them all.
@@ -45,8 +45,9 @@ namespace ConnectionTest.Algorithm
             }
             else if (queue.Count > maxPool)
             {
-                var obsoleteChannel = queue.Dequeue();
-                obsoleteChannel.Dispose();
+                var excessChannel = queue.Dequeue();
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} removed excess out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, excessChannel.DispatcherId);
+                excessChannel.Dispose();
             }
         }
     }

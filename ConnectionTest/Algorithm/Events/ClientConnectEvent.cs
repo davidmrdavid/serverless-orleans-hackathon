@@ -19,6 +19,7 @@ namespace ConnectionTest.Algorithm
     {
         public Guid ConnectionId;
         public string ToMachine;
+        public DateTime Issued;
         public TaskCompletionSource<Connection> Response;
         public OutChannel OutChannel;
 
@@ -26,20 +27,20 @@ namespace ConnectionTest.Algorithm
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            var key = dispatcher.OutChannels.Keys.LastOrDefault((string s) => s.StartsWith(this.ToMachine));
+            var key = dispatcher.ChannelPools.Keys.LastOrDefault((string s) => s.StartsWith(this.ToMachine));
 
             if (key == null)
             {
-                dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} queued", dispatcher, this.ToMachine);
+                dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
                 dispatcher.OutChannelWaiters.Add(this);
             }
             else
             {
-                var queue = dispatcher.OutChannels[key];
+                var queue = dispatcher.ChannelPools[key];
                 this.OutChannel = queue.Dequeue();
                 if (queue.Count == 0)
                 {
-                    dispatcher.OutChannels.Remove(key);
+                    dispatcher.ChannelPools.Remove(key);
                 }
 
                 this.OutChannel.ConnectionId = this.ConnectionId;
@@ -53,16 +54,25 @@ namespace ConnectionTest.Algorithm
                         queue.Count() == 0 ? Format.Op.ConnectAndSolicit : Format.Op.Connect,
                         this.ConnectionId);
 
-                    dispatcher.Logger.LogWarning("{dispatcher} connect to {destination} sent", dispatcher, this.ToMachine);
+                    dispatcher.Logger.LogInformation("{dispatcher} {connectionId:N}  to {destination} sent", dispatcher, this.ConnectionId, this.ToMachine);
                 }
                 catch (Exception exception)
                 {
-                    dispatcher.Logger.LogWarning("{dispatcher} could not send Connect message: {exception}", dispatcher, exception);
+                    dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} could not send Connect message: {exception}", dispatcher, this.ConnectionId, exception);
 
                     // we can retry this
                     dispatcher.Worker.Submit(this);
                 }
             }
+        }
+
+        public override bool TimedOut => DateTime.UtcNow - this.Issued > TimeSpan.FromSeconds(30);
+
+        public override void HandleTimeout(Dispatcher dispatcher)
+        {
+            TimeSpan elapsed = DateTime.UtcNow - this.Issued;
+            dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} connect to {destination} timed out after {elapsed}", dispatcher, this.ConnectionId, this.ToMachine, elapsed);
+            this.Response.TrySetException(new TimeoutException($"Could not reach {this.ToMachine} after {elapsed}"));
         }
     }
 }

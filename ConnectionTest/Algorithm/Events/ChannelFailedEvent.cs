@@ -21,28 +21,66 @@ namespace ConnectionTest.Algorithm
 
     internal class ChannelFailedEvent : DispatcherEvent
     {
+        public Guid ChannelId;
+        public string DispatcherId;
         public Channel Channel;
-        
+        public DateTime Issued = DateTime.UtcNow;
+
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            if (this.Channel.ConnectionId != default)
+            if (Channel != null)
             {
-                // channel is associated with a connection, which may involve
-                // many objects. To clean up everything, we cancel from top-down
-
-                var evt = new ConnectionFailedEvent()
+                if (this.Channel.ConnectionId != default)
                 {
-                    ConnectionId = this.Channel.ConnectionId
-                };
+                    // channel is associated with a connection, which may involve
+                    // many objects. To clean up everything, we cancel from top-down
 
-                await evt.ProcessAsync(dispatcher);
-            }
-            else
-            {       
-                Util.FilterQueues(dispatcher.OutChannels, x => x != this.Channel);
+                    var evt = new ConnectionFailedEvent()
+                    {
+                        ConnectionId = this.Channel.ConnectionId
+                    };
+
+                    await evt.ProcessAsync(dispatcher);
+                }
 
                 this.Channel.Dispose();
+
+                Util.FilterDictionary(  
+                    dispatcher.ConnectRequests, 
+                    req => req.OutChannel.ChannelId != this.ChannelId,
+                    (k,v) => v.Response.TrySetException(new IOException($"Could not reach {v.ToMachine} because connection closed unexpectedly")));
             }
+            else
+            {
+                Util.FilterQueues(dispatcher.ChannelPools, x => x.ChannelId != this.ChannelId);
+
+                if (!dispatcher.ChannelPools.TryGetValue(this.DispatcherId, out var queue))
+                {
+                    dispatcher.OutChannelWaiters.Add(this);
+                }
+                else
+                {
+                    try
+                    {
+                        await Format.SendAsync(queue.Peek().Stream, Format.Op.ChannelFailed, this.ChannelId);
+                    }
+                    catch (Exception exception)
+                    {
+                        dispatcher.Logger.LogWarning("{dispatcher} could not send ChannelFailed message: {exception}", dispatcher, exception);
+
+                        // we can retry this
+                        dispatcher.Worker.Submit(this);
+                    }
+                }
+            }
+        }
+
+        public override bool TimedOut => DateTime.UtcNow - this.Issued > TimeSpan.FromSeconds(30);
+
+        public override void HandleTimeout(Dispatcher dispatcher)
+        {
+            TimeSpan elapsed = DateTime.UtcNow - this.Issued;
+            dispatcher.Logger.LogWarning("{dispatcher} {channelId:N} ChannelFailed message timed out after {elapsed}", dispatcher, this.ChannelId, elapsed);
         }
     }
 }

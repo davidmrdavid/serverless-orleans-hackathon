@@ -22,6 +22,7 @@ namespace ConnectionTest.Algorithm
         public OutChannel OutChannel;
         public bool DoServerBroadcast;
         public bool DoClientBroadcast;
+        public DateTime Issued;
 
         public override bool CancelWithConnection(Guid connectionId) => connectionId == this.ConnectionId;
 
@@ -29,9 +30,10 @@ namespace ConnectionTest.Algorithm
         {
             if (this.OutChannel == null)
             {
-                if (!dispatcher.OutChannels.TryGetValue(this.InChannel.DispatcherId, out var queue))
+                if (!dispatcher.ChannelPools.TryGetValue(this.InChannel.DispatcherId, out var queue))
                 {
                     dispatcher.OutChannelWaiters.Add(this);
+                    dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect from {destination} queued for channel", dispatcher, this.ConnectionId, this.InChannel.DispatcherId);
                     return;
                 }
                 else
@@ -39,12 +41,12 @@ namespace ConnectionTest.Algorithm
                     this.OutChannel = queue.Dequeue();
                     if (queue.Count == 0)
                     {
-                        dispatcher.OutChannels.Remove(this.InChannel.DispatcherId);
+                        dispatcher.ChannelPools.Remove(this.InChannel.DispatcherId);
                         DoClientBroadcast = true;
                     }
                     this.OutChannel.ConnectionId = this.ConnectionId;
                 }
-            }      
+            }
 
             dispatcher.AcceptWaiters.Enqueue(this);
 
@@ -53,11 +55,27 @@ namespace ConnectionTest.Algorithm
             {
                 await acceptEvent.ProcessAsync(dispatcher);
             }
-          
+            else
+            {
+                dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect from {destination} queued for accept", dispatcher, this.ConnectionId, this.InChannel.DispatcherId);
+            }
+
             if (this.DoServerBroadcast)
             {
                 TimerEvent.MakeContactAsync(dispatcher);
             }
+        }
+
+        public override bool TimedOut => DateTime.UtcNow - this.Issued > TimeSpan.FromSeconds(30);
+
+        public override void HandleTimeout(Dispatcher dispatcher)
+        {
+            TimeSpan elapsed = DateTime.UtcNow - this.Issued;
+            dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} server connect timed out after {elapsed}", dispatcher, this.ConnectionId, elapsed);
+            dispatcher.Worker.Submit(new ConnectionFailedEvent()
+            {
+                ConnectionId = this.ConnectionId, 
+            });
         }
     }
 }

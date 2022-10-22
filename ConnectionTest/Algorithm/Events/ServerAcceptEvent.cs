@@ -35,6 +35,8 @@ namespace ConnectionTest.Algorithm
 
                 dispatcher.InConnections.Add(connection.ConnectionId, connection);
 
+                dispatcher.Logger.LogInformation("{dispatcher} {connectionId:N} connect from {destination} accepted, established", dispatcher, connection.ConnectionId, connection.InChannel.DispatcherId);
+
                 try
                 {
                     await Format.SendAsync(

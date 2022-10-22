@@ -23,7 +23,9 @@ namespace ConnectionTest.Algorithm
     {
         public Guid ConnectionId;
 
-        public string ToSend;     
+        public string ToSend;
+
+        public DateTime Issued = DateTime.UtcNow;
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
@@ -59,7 +61,7 @@ namespace ConnectionTest.Algorithm
 
             if (ToSend != null)
             {
-                if (!dispatcher.OutChannels.TryGetValue(ToSend, out var queue))
+                if (!dispatcher.ChannelPools.TryGetValue(ToSend, out var queue))
                 {
                     dispatcher.OutChannelWaiters.Add(this);
                 }
@@ -67,17 +69,25 @@ namespace ConnectionTest.Algorithm
                 {
                     try
                     {
-                        await Format.SendAsync(queue.Peek().Stream, Format.Op.ChannelFailed, this.ConnectionId);
+                        await Format.SendAsync(queue.Peek().Stream, Format.Op.ConnectionFailed, this.ConnectionId);
                     }
                     catch(Exception exception)
                     {
-                        dispatcher.Logger.LogWarning("{dispatcher} could not send ChannelFailed message: {exception}", dispatcher, exception);
+                        dispatcher.Logger.LogWarning("{dispatcher} could not send ConnectionFailed message: {exception}", dispatcher, exception);
 
                         // we can retry this
                         dispatcher.Worker.Submit(this);
                     }
                 }
             }
-        } 
+        }
+
+        public override bool TimedOut => DateTime.UtcNow - this.Issued > TimeSpan.FromSeconds(30);
+
+        public override void HandleTimeout(Dispatcher dispatcher)
+        {
+            TimeSpan elapsed = DateTime.UtcNow - this.Issued;
+            dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} ConnectionFailed message timed out after {elapsed}", dispatcher, this.ConnectionId, elapsed);
+        }
     }
 }

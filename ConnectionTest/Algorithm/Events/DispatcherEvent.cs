@@ -15,11 +15,18 @@ namespace ConnectionTest.Algorithm
             var _ = ScheduleNextPassAsync();
             async Task ScheduleNextPassAsync()
             {
-                await Task.Delay(TimeSpan.FromSeconds(10));
+                await Task.Delay(delay);
                 dispatcher.Worker.Submit(this);
             }
         }
 
         public virtual bool CancelWithConnection(Guid connectionId) => false;
+
+        public virtual bool TimedOut => false;
+
+        public virtual void HandleTimeout(Dispatcher dispatcher) 
+        {
+        }
+
     }
 }

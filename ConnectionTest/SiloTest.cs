@@ -36,11 +36,6 @@ namespace ConnectionTest
             CancellationToken cancellationToken,
             ILogger log)
         {
-
-            IPAddress ip = await ConfigUtilities.ResolveIPAddress(null, null, System.Net.Sockets.AddressFamily.InterNetwork);
-            Console.WriteLine(ip.ToString());
-            log.LogWarning($"You have reached IP = {ip}");
-
             if (started == 0)
             {
                 if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
@@ -54,8 +49,10 @@ namespace ConnectionTest
 
                     startupPromise.SetResult(true);
 
+                    string clusterId = $"my-cluster-{Guid.NewGuid()}";
+
                     var tasks = groups
-                       .Select((g, i) => g.StartAsync(req, i, log, cancellationToken))
+                       .Select((g, i) => g.StartAsync(req, clusterId, i, log, cancellationToken))
                        .ToList();
                 }
             }
@@ -128,24 +125,26 @@ namespace ConnectionTest
             public Task<Dispatcher> GetDispatcherAsync() => dispatcherPromise.Task;
             public Task<Silo> GetSiloAsync() => siloPromise.Task;
 
-            public async Task StartAsync(HttpRequestMessage requestMessage, int index, ILogger logger, CancellationToken hostShutdownToken)
+            public async Task StartAsync(HttpRequestMessage requestMessage, string clusterId, int index, ILogger logger, CancellationToken hostShutdownToken)
             {
+
                 Uri functionAddress = requestMessage.RequestUri;
                 var address = IPAddress.Parse($"{index + 1}.{index + 1}.{index + 1}.{index + 1}");
-                int port = index + 1;
+                int port = (new Random()).Next(9999) + 1;
                 string siloEndpoint = $"{address}:{port}";
-                string dispatcherId = $"{siloEndpoint} {DateTime.UtcNow:o}";
+                string dispatcherIdPrefix = siloEndpoint;
+                string dispatcherIdSuffix = DateTime.UtcNow.ToString("O");
 
-                var newDispatcher = new Dispatcher(functionAddress, dispatcherId, logger, hostShutdownToken);
+                var newDispatcher = new Dispatcher(functionAddress, dispatcherIdPrefix, dispatcherIdSuffix, logger, hostShutdownToken);
                 newDispatcher.StartChannels();
                 dispatcherPromise.SetResult(newDispatcher);
 
                 var connectionFactory = new ConnectionFactory(newDispatcher);
                 var silo = new Silo();
-                await silo.StartAsync(address, port, connectionFactory, hostShutdownToken, logger);
+                logger.LogWarning($"starting silo {index} on {newDispatcher}");
+                await silo.StartAsync(clusterId, address, port, connectionFactory, hostShutdownToken, logger);
+                logger.LogWarning($"Silo {index} started successfully {newDispatcher.DispatcherId}");
                 siloPromise.SetResult(silo);
-
-                logger.LogWarning($"Silo {index} started successfully {dispatcherId}");
             }
         }
     }

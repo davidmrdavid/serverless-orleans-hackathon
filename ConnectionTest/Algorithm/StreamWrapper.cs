@@ -32,6 +32,8 @@ namespace ConnectionTest.Algorithm
             {
                 dispatcher.Worker.Submit(new ChannelFailedEvent()
                 {
+                    ChannelId = channel.ChannelId,
+                    DispatcherId = channel.DispatcherId,
                     Channel = channel,
                 });
             }      

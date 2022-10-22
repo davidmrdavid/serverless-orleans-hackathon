@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT License.
 
+using Orleans.Streams;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,11 +48,23 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static List<T> FilterList<T>(List<T> list, Func<T, bool> predicate)
+        public static List<T> FilterList<T>(List<T> list, Func<T, bool> predicate, Action<T> action = null)
         {
             if (list.Any(element => !predicate(element)))
             {
-                return list.Where(predicate).ToList();
+                var newlist = new List<T>();
+                foreach(var element in list)
+                {
+                    if (predicate(element))
+                    {
+                        newlist.Add(element);
+                    }
+                    else if (action != null)
+                    {
+                        action(element);
+                    }
+                }
+                return newlist;
             }
             else
             {
@@ -59,7 +72,7 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static Queue<T> FilterQueue<T>(Queue<T> queue, Func<T, bool> predicate)
+        public static Queue<T> FilterQueue<T>(Queue<T> queue, Func<T, bool> predicate, Action<T> action = null)
         {
             if (queue.Any(element => !predicate(element)))
             {
@@ -70,6 +83,10 @@ namespace ConnectionTest.Algorithm
                     {
                         newQueue.Enqueue(element);
                     }
+                    else if (action != null)
+                    {
+                        action(element);
+                    }
                 }
                 return newQueue;
             }
@@ -79,7 +96,7 @@ namespace ConnectionTest.Algorithm
             }
         }
 
-        public static void FilterDictionary<K, V>(Dictionary<K, V> dictionary, Func<V, bool> predicate)
+        public static void FilterDictionary<K, V>(Dictionary<K, V> dictionary, Func<V, bool> predicate, Action<K,V> action = null)
         {
             List<K> toRemove = null;
             foreach (var kvp in dictionary)
@@ -87,6 +104,11 @@ namespace ConnectionTest.Algorithm
                 if (!predicate(kvp.Value))
                 {
                     (toRemove ?? (toRemove = new List<K>())).Add(kvp.Key);
+
+                    if (action != null)
+                    {
+                        action(kvp.Key, kvp.Value);
+                    }
                 }
             }
             if (toRemove != null)

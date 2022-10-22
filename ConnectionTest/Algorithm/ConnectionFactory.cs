@@ -5,6 +5,7 @@ namespace ConnectionTest.Algorithm
 {
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Hosting;
+    using Microsoft.Extensions.Logging;
     using Orleans;
     using Orleans.Configuration;
     using Orleans.Hosting;
@@ -24,12 +25,15 @@ namespace ConnectionTest.Algorithm
 
         public Task<Connection> ConnectAsync(string machine)
         {
+
             var connectEvent = new ClientConnectEvent()
             {
                 ConnectionId = Guid.NewGuid(),
                 ToMachine = machine,
+                Issued = DateTime.UtcNow,
                 Response = new TaskCompletionSource<Connection>(),
             };
+            dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect to {destination} called", dispatcher, connectEvent.ConnectionId, connectEvent.ToMachine);
             this.dispatcher.Worker.Submit(connectEvent);
             return connectEvent.Response.Task;
         }
@@ -40,6 +44,7 @@ namespace ConnectionTest.Algorithm
             {
                 Response = new TaskCompletionSource<Connection>(),
             };
+            dispatcher.Logger.LogDebug("{dispatcher} accept called", dispatcher);
             this.dispatcher.Worker.Submit(acceptEvent);
             return acceptEvent.Response.Task;
         }

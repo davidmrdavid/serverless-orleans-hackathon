@@ -52,36 +52,48 @@ namespace ConnectionTest
             }
         }
 
-        internal async Task StartAsync(IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken, ILogger logger)
+        static SemaphoreSlim siloBuilderLock = new SemaphoreSlim(1);
+
+        internal async Task StartAsync(string clusterId, IPAddress address, int port, ConnectionFactory connFactory, CancellationToken cancellationToken, ILogger logger)
         {
             this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
             ILoggerProvider loggerProvider = new WorkerLoggerProvider(logger);
-            Host = new HostBuilder()
-                .UseOrleans(builder => builder
-                    .Configure<ClusterOptions>(options =>
-                    {
-                        options.ClusterId = "my-first-cluster";
-                        options.ServiceId = "MyAwesomeOrleansService";
-                    })
-                    .Configure<EndpointOptions>(options =>
-                    {
-                        options.AdvertisedIPAddress = address;
-                        options.SiloPort = port;
-                        options.GatewayPort = 0;
-                    })
-                    .ConfigureServices(services =>
-                    {
-                        services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(connFactory));
-                        services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
-                        services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetGatewayKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
-                    })
-                    .ConfigureLogging(logBuilder => logBuilder.AddProvider(loggerProvider))
-                    .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
-                    .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
-                )
-                .Build();
 
-            await Host.StartAsync();
+            try
+            {
+                await siloBuilderLock.WaitAsync();
+
+                Host = new HostBuilder()
+                    .UseOrleans(builder => builder
+                        .Configure<ClusterOptions>(options =>
+                        {
+                            options.ClusterId = clusterId;
+                            options.ServiceId = "MyAwesomeOrleansService";
+                        })
+                        .Configure<EndpointOptions>(options =>
+                        {
+                            options.AdvertisedIPAddress = address;
+                            options.SiloPort = port;
+                            options.GatewayPort = 0;
+                        })
+                        .ConfigureServices(services =>
+                        {
+                            services.AddSingletonKeyedService<object, IConnectionFactory>(KeyExports.GetSiloConnectionKey, OrleansExtensions.CreateServerlessConnectionFactory(connFactory));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetConnectionListenerKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
+                            services.AddSingletonKeyedService<object, IConnectionListenerFactory>(KeyExports.GetGatewayKey, OrleansExtensions.CreateServerlessConnectionListenerFactory(connFactory));
+                        })
+                        .ConfigureLogging(logBuilder => logBuilder.AddProvider(loggerProvider))
+                        .UseAzureStorageClustering(options => options.ConfigureTableServiceClient(Environment.GetEnvironmentVariable("AzureWebJobsStorage")))
+                        .ConfigureApplicationParts(parts => parts.AddApplicationPart(typeof(Application.HelloGrain).Assembly).WithReferences())
+                    )
+                    .Build();
+
+                await Host.StartAsync();
+            }
+            finally
+            {
+                siloBuilderLock.Release();
+            }
 
             this.Endpoint = Host.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint.ToString();
         }

@@ -10,7 +10,9 @@ namespace ConnectionTest.Algorithm
     using Microsoft.Extensions.Azure;
     using Microsoft.Extensions.Logging;
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
+    using System.Data.Common;
     using System.IO;
     using System.Linq;
     using System.Net;
@@ -25,6 +27,7 @@ namespace ConnectionTest.Algorithm
         internal ILogger Logger { get; }
         internal Dispatcher.Processor Worker { get; }
         public string DispatcherId { get; }
+        public string ShortId { get; }
         internal byte[] DispatcherIdBytes { get; }
         public Uri FunctionAddress { get; }
         public HttpClient HttpClient { get; }
@@ -32,8 +35,9 @@ namespace ConnectionTest.Algorithm
         IDisposable cancellationTokenRegistration;
 
         // channels
-        internal SortedDictionary<string, Queue<OutChannel>> OutChannels { get; set; }
+        internal SortedDictionary<string, Queue<OutChannel>> ChannelPools { get; set; }
         internal List<DispatcherEvent> OutChannelWaiters { get; set; }
+        internal ConcurrentDictionary<Guid, InChannel> InChannelListeners { get; set; }
 
         // client
         internal Dictionary<Guid, ClientConnectEvent> ConnectRequests { get; set; }
@@ -44,17 +48,19 @@ namespace ConnectionTest.Algorithm
         internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
         internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
-        public Dispatcher(Uri FunctionAddress, string dispatcherId, ILogger logger, CancellationToken hostShutdownToken)
+        public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger, CancellationToken hostShutdownToken)
         {
             this.Logger = logger;
             this.Worker = new Processor(this, hostShutdownToken);
             this.HostShutdownToken = hostShutdownToken;
             this.FunctionAddress = FunctionAddress;
-            this.DispatcherId = dispatcherId;
-            this.DispatcherIdBytes = GetBytes(dispatcherId);
+            this.DispatcherId = $"{dispatcherIdPrefix} {dispatcherIdSuffix}";
+            this.ShortId = dispatcherIdPrefix;
+            this.DispatcherIdBytes = GetBytes(this.DispatcherId);
             this.HttpClient = new HttpClient();
             this.HttpClient.DefaultRequestHeaders.Add("DispatcherId", this.DispatcherId);
-            this.OutChannels = new SortedDictionary<string, Queue<OutChannel>>();
+            this.ChannelPools = new SortedDictionary<string, Queue<OutChannel>>();
+            this.InChannelListeners = new ConcurrentDictionary<Guid, InChannel>();
             this.OutChannelWaiters = new List<DispatcherEvent>();
             this.ConnectRequests = new Dictionary<Guid, ClientConnectEvent>();
             this.OutConnections = new Dictionary<Guid, Connection>();
@@ -71,15 +77,15 @@ namespace ConnectionTest.Algorithm
 
         public string PrintInformation()
         {
-            var sb = new StringBuilder();
-            sb.AppendLine($"{this} Ch={this.OutChannels.Count} ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
-                + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}");
-            return sb.ToString();
+            var poolSizes = string.Join(",", this.ChannelPools.Values.Select(q => q.Count.ToString()));
+            var chListeners = string.Join(",", this.InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).Select(g => g.Count()));
+            return $"ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={this.OutChannelWaiters.Count} ConnReq={this.ConnectRequests.Count} "
+                + $"acceptQ={this.AcceptQueue.Count} acceptW={this.AcceptWaiters.Count} outConn={this.OutConnections.Count} inConn={this.InConnections.Count}";
         }
 
         public override string ToString()
         {
-            return $"Dispatcher {this.DispatcherId}";
+            return $"Dispatcher {this.ShortId}";
         }
 
         public void Dispose()
@@ -108,22 +114,30 @@ namespace ConnectionTest.Algorithm
             httpResponseMessage.RequestMessage = requestMessage;
             httpResponseMessage.Headers.Add("DispatcherId", this.DispatcherId);
 
-            //var query = requestMessage.RequestUri.ParseQueryString();
-            //string from = query["from"];
-
             try
             {
                 string from = null;
+                Guid channelId = default;
+
                 if (requestMessage.Headers.TryGetValues("DispatcherId", out var values))
                 {
+                    var query = requestMessage.RequestUri.ParseQueryString();
                     from = values.FirstOrDefault();
+                    string channelIdString = query["channelId"];
+                    bool success = Guid.TryParse(channelIdString, out channelId);
+                    if (!success)
+                    {
+                        this.Logger.LogError("{dispatcher} bad request {request}: cannot parse '{channelIdString}'", this, requestMessage.RequestUri, channelIdString);
+                        httpResponseMessage.StatusCode = HttpStatusCode.BadRequest;
+                        return httpResponseMessage;
+                    }
                 }
 
                 if (from == null)
                 {
                     // this is a request sent from external admin, to start or inquire
                     httpResponseMessage.StatusCode = requestMessage.Method == HttpMethod.Get ? HttpStatusCode.OK : HttpStatusCode.Accepted;
-                    httpResponseMessage.Content = new StringContent(this?.PrintInformation() ?? "not started. Need to POST first, with service Url as argument.\n");
+                    httpResponseMessage.Content = new StringContent($"{this} {this.PrintInformation()}");
                 }
                 else
                 {
@@ -135,28 +149,41 @@ namespace ConnectionTest.Algorithm
                     else
                     {
                         // this is a request sent from some other worker. We keep the response channel open.
+                        this.Logger.LogTrace("{dispatcher} {channelId} contacted by {destination}", this, channelId, from);
                         httpResponseMessage.StatusCode = HttpStatusCode.Accepted;
                         httpResponseMessage.Content = new PushStreamContent(async (Stream stream, HttpContent content, TransportContext context) =>
                         {
-                            var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-
-                            var outChannel = new OutChannel();
-                            outChannel.DispatcherId = from;
-                            outChannel.Stream = new StreamWrapper(stream, this, outChannel);
-                            outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
-                            
-                            this.Worker.Submit(new NewChannelEvent()
+                            try
                             {
-                                OutChannel = outChannel,
-                            });
+                                var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
-                            await stream.WriteAsync(this.DispatcherIdBytes);
-                            await stream.FlushAsync();
-                            await completionPromise.Task;
-                            await stream.DisposeAsync();
+                                var outChannel = new OutChannel();
+                                outChannel.DispatcherId = from;
+                                outChannel.ChannelId = channelId;
+
+                                await stream.WriteAsync(this.DispatcherIdBytes);
+                                await stream.FlushAsync();
+
+                                outChannel.Stream = new StreamWrapper(stream, this, outChannel);
+                                outChannel.TerminateResponse = () => completionPromise.TrySetResult(true);
+
+                                this.Worker.Submit(new NewChannelEvent()
+                                {
+                                    OutChannel = outChannel,
+                                });
+
+                                await completionPromise.Task;
+                                await stream.FlushAsync();
+                                await stream.DisposeAsync();
+
+                                this.Logger.LogTrace("{dispatcher} {channelId} disposed", this, channelId);
+                            }
+                            catch (Exception exception)
+                            {
+                                this.Logger.LogWarning("{dispatcher} {channelId} error in PushStreamContent: {exception}", this, channelId, exception);
+                            }
                         });
                     }
-
                 }
             }
             catch (Exception exception)
@@ -194,16 +221,16 @@ namespace ConnectionTest.Algorithm
 
             protected override async Task Process(IList<DispatcherEvent> batch)
             {
-                try
+                foreach (var dispatcherEvent in batch)
                 {
-                    foreach (var dispatcherEvent in batch)
+                    try
                     {
                         await dispatcherEvent.ProcessAsync(dispatcher);
                     }
-                }
-                catch (Exception exception)
-                {
-                    this.dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception in processor: {exception}", this.dispatcher.DispatcherId, exception);
+                    catch (Exception exception)
+                    {
+                        this.dispatcher.Logger.LogError("Dispatcher {dispatcherId} encountered exception while processing {event}: {exception}", this.dispatcher.DispatcherId, dispatcherEvent, exception);
+                    }
                 }
             }
         }
