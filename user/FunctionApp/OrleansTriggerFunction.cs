@@ -39,7 +39,6 @@ namespace FunctionApp
             return await Static.DispatchAsync(req, ConfigureOrleans, logger, shutDownToken);
         }
 
-
         static void ConfigureOrleans(ISiloBuilder builder)
         {
             builder

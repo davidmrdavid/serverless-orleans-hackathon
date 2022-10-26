@@ -21,12 +21,14 @@ namespace OrleansConnector.Algorithm
     using System.Threading.Tasks;
     using System.Xml.Linq;
 
-    internal class ChannelFailedEvent : DispatcherEvent
+    internal class ChannelClosedEvent : DispatcherEvent
     {
         public Guid ChannelId;
         public string DispatcherId;
         public Channel Channel;
         public DateTime Issued = DateTime.UtcNow;
+
+        internal ChannelClosedEvent() { }
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
@@ -37,7 +39,7 @@ namespace OrleansConnector.Algorithm
                     // channel is associated with a connection, which may involve
                     // many objects. To clean up everything, we cancel from top-down
 
-                    var evt = new ConnectionFailedEvent()
+                    var evt = new ConnectionClosedEvent()
                     {
                         ConnectionId = this.Channel.ConnectionId
                     };
@@ -65,13 +67,13 @@ namespace OrleansConnector.Algorithm
                     var outChannel = queue.Peek();
                     try
                     {
-                        await Format.SendAsync(outChannel.Stream, Format.Op.ChannelFailed, this.ChannelId);
+                        await Format.SendAsync(outChannel.Stream, Format.Op.ChannelClosed, this.ChannelId);
 
-                        dispatcher.Logger.LogTrace("{dispatcher} {channelId} sent ChannelFailed", dispatcher, outChannel.ChannelId);
+                        dispatcher.Logger.LogTrace("{dispatcher} {channelId} sent ChannelClosed", dispatcher, outChannel.ChannelId);
                     }
                     catch (Exception exception)
                     {
-                        dispatcher.Logger.LogWarning("{dispatcher} {channelId} could not send ChannelFailed: {exception}", dispatcher, outChannel.ChannelId, exception);
+                        dispatcher.Logger.LogWarning("{dispatcher} {channelId} could not send ChannelClosed: {exception}", dispatcher, outChannel.ChannelId, exception);
 
                         // we can retry this
                         dispatcher.Worker.Submit(this);
@@ -85,7 +87,7 @@ namespace OrleansConnector.Algorithm
         public override void HandleTimeout(Dispatcher dispatcher)
         {
             TimeSpan elapsed = DateTime.UtcNow - this.Issued;
-            dispatcher.Logger.LogWarning("{dispatcher} {channelId} ChannelFailed message timed out after {elapsed}", dispatcher, this.ChannelId, elapsed);
+            dispatcher.Logger.LogWarning("{dispatcher} {channelId} ChannelClosed message timed out after {elapsed}", dispatcher, this.ChannelId, elapsed);
         }
     }
 }

@@ -63,7 +63,7 @@ namespace OrleansConnector.Algorithm
 
             if (this.DoServerBroadcast)
             {
-                TimerEvent.MakeContactAsync(dispatcher);
+                TimerEvent.BroadcastContactRequests(dispatcher);
             }
         }
 
@@ -73,7 +73,7 @@ namespace OrleansConnector.Algorithm
         {
             TimeSpan elapsed = DateTime.UtcNow - this.Issued;
             dispatcher.Logger.LogWarning("{dispatcher} {connectionId:N} server connect timed out after {elapsed}", dispatcher, this.ConnectionId, elapsed);
-            dispatcher.Worker.Submit(new ConnectionFailedEvent()
+            dispatcher.Worker.Submit(new ConnectionClosedEvent()
             {
                 ConnectionId = this.ConnectionId, 
             });

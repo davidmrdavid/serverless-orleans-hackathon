@@ -21,9 +21,8 @@ namespace OrleansConnector
     using Microsoft.Extensions.Logging;
 
     public class Silo
-    {     
-        IDisposable cancellationTokenRegistration;
-        
+    {             
+        ILogger logger;
         public string Endpoint { get; private set; }
         public IHost Host { get; private set; }
 
@@ -54,11 +53,11 @@ namespace OrleansConnector
 
         static SemaphoreSlim siloBuilderLock = new SemaphoreSlim(1);
 
-        public async Task StartAsync(string clusterId, IPAddress address, int port, Action<ISiloBuilder> configureOrleans, ConnectionFactory connFactory, CancellationToken cancellationToken, ILogger logger)
+        public async Task StartAsync(string clusterId, IPAddress address, int port, Action<ISiloBuilder> configureOrleans, ConnectionFactory connFactory, ILogger logger)
         {
-            this.cancellationTokenRegistration = cancellationToken.Register(this.Shutdown);
+            this.logger = logger;
             ILoggerProvider loggerProvider = new WorkerLoggerProvider(logger);
-
+            
             try
             {
                 await siloBuilderLock.WaitAsync();
@@ -100,16 +99,6 @@ namespace OrleansConnector
             }
 
             this.Endpoint = Host.Services.GetRequiredService<ILocalSiloDetails>().SiloAddress.Endpoint.ToString();
-        }
-
-        void Shutdown()
-        {
-            this.cancellationTokenRegistration?.Dispose();
-
-            Task.Run(async () =>
-            {
-                await this.Host.StopAsync();
-            });
         }
     }
 }

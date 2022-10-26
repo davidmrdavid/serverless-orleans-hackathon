@@ -24,6 +24,7 @@ namespace ConnectionTest
     using Orleans;
     using OrleansConnector.Algorithm;
     using OrleansConnector;
+    using Orleans.Runtime;
 
     public static class SiloTest
     {
@@ -55,7 +56,7 @@ namespace ConnectionTest
                     string clusterId = $"my-cluster-{Guid.NewGuid()}";
 
                     var tasks = groups
-                       .Select((g, i) => g.StartAsync(req, clusterId, i, log, cancellationToken))
+                       .Select((g, i) => g.StartAsync(req, clusterId, i, log))
                        .ToList();
                 }
             }
@@ -64,6 +65,31 @@ namespace ConnectionTest
             //var dispatcher = (await GetRandomGroupAsync()).GetDispatcherAsync();
 
             return dispatcher.Dispatch(req);
+        }
+
+        [FunctionName("stopsilos")]
+        public static async Task<IActionResult> StopSilos(
+            [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "stopsilos/{numsilos}")] HttpRequest req,
+            int numSilos,
+            CancellationToken cancellationToken,
+            ILogger log)
+        {
+            for (int i = 0; i < numSilos; i++)
+            {
+                try
+                {
+                    log.LogWarning($"stopping silo {i}");
+                    await groups[i].StopAsync(log);
+                }
+
+                catch (Exception e)
+                {
+                    log.LogWarning($"failed shutdown");
+                    return new ObjectResult(e.ToString()) { StatusCode = (int)HttpStatusCode.InternalServerError };
+                }
+            }
+
+            return new OkObjectResult("shutdown completed.\n");
         }
 
         [FunctionName("testsilos")]
@@ -123,14 +149,13 @@ namespace ConnectionTest
         public class Group
         {
             readonly TaskCompletionSource<Dispatcher> dispatcherPromise = new TaskCompletionSource<Dispatcher>();
-            readonly TaskCompletionSource<Silo> siloPromise = new TaskCompletionSource<Silo>();
+            readonly TaskCompletionSource<OrleansConnector.Silo> siloPromise = new TaskCompletionSource<OrleansConnector.Silo>();
 
             public Task<Dispatcher> GetDispatcherAsync() => dispatcherPromise.Task;
-            public Task<Silo> GetSiloAsync() => siloPromise.Task;
+            public Task<OrleansConnector.Silo> GetSiloAsync() => siloPromise.Task;
 
-            public async Task StartAsync(HttpRequestMessage requestMessage, string clusterId, int index, ILogger logger, CancellationToken hostShutdownToken)
+            public async Task StartAsync(HttpRequestMessage requestMessage, string clusterId, int index, ILogger logger)
             {
-
                 Uri functionAddress = requestMessage.RequestUri;
                 var address = IPAddress.Parse($"{index + 1}.{index + 1}.{index + 1}.{index + 1}");
                 int port = (new Random()).Next(9999) + 1;
@@ -138,16 +163,44 @@ namespace ConnectionTest
                 string dispatcherIdPrefix = siloEndpoint;
                 string dispatcherIdSuffix = DateTime.UtcNow.ToString("O");
 
-                var newDispatcher = new Dispatcher(functionAddress, dispatcherIdPrefix, dispatcherIdSuffix, logger, hostShutdownToken);
-                newDispatcher.StartChannels();
+                var newDispatcher = new Dispatcher(functionAddress, dispatcherIdPrefix, dispatcherIdSuffix, logger);
+                await newDispatcher.StartAsync();
                 dispatcherPromise.SetResult(newDispatcher);
 
                 var connectionFactory = new ConnectionFactory(newDispatcher);
-                var silo = new Silo();
+                var silo = new OrleansConnector.Silo();
                 logger.LogWarning($"starting silo {index} on {newDispatcher}");
-                await silo.StartAsync(clusterId, address, port, ConfigureOrleans, connectionFactory, hostShutdownToken, logger);
+                await silo.StartAsync(clusterId, address, port, ConfigureOrleans, connectionFactory, logger);
                 logger.LogWarning($"Silo {index} started successfully {newDispatcher.DispatcherId}");
                 siloPromise.SetResult(silo);
+            }
+
+            public async Task StopAsync(ILogger logger)
+            {
+                var dispatcher = await dispatcherPromise.Task;
+                var silo = await siloPromise.Task;
+
+                try
+                {
+                    logger.LogDebug("{dispatcher} stopping silo", dispatcher);
+                    await silo.Host.StopAsync();
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError("{dispatcher} failed to stop silo cleanly: {exception}", dispatcher, exception);
+                }
+
+                try
+                {
+                    logger.LogDebug("{dispatcher} stopping dispatcher", dispatcher);
+                    await dispatcher.StopAsync();
+                }
+                catch (Exception exception)
+                {
+                    logger.LogError("{dispatcher} failed to stop dispatcher cleanly: {exception}", dispatcher, exception);
+                }
+
+                logger.LogInformation("{dispatcher} stopped", dispatcher);
             }
 
             static void ConfigureOrleans(ISiloBuilder builder)

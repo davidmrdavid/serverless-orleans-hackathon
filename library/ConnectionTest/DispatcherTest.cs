@@ -31,7 +31,6 @@ namespace ConnectionTest
         public static HttpResponseMessage StartDispatchers(
             [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "startdispatchers/{numDispatchers}")] HttpRequestMessage req,
             int numDispatchers,
-            CancellationToken cancellationToken,
             ILogger log)
         {
 
@@ -41,7 +40,7 @@ namespace ConnectionTest
 
                 dispatchers = Enumerable
                     .Range(0, numDispatchers)
-                    .Select(i => new Dispatcher(req.RequestUri, $"{i:D2}", $"{DateTime.UtcNow}", log, cancellationToken))
+                    .Select(i => new Dispatcher(req.RequestUri, $"{i:D2}", $"{DateTime.UtcNow}", log))
                     .ToArray();
 
                 connectionFactories = Enumerable
@@ -51,7 +50,7 @@ namespace ConnectionTest
 
                 foreach (var d in dispatchers)
                 {
-                    d.StartChannels();
+                    d.StartAsync().GetAwaiter().GetResult();
                 }
             }
 

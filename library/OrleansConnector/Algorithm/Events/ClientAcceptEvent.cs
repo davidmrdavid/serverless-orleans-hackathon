@@ -46,7 +46,7 @@ namespace OrleansConnector.Algorithm
 
             if (this.DoClientBroadcast)
             {
-                TimerEvent.MakeContactAsync(dispatcher);
+                TimerEvent.BroadcastContactRequests(dispatcher);
             }
 
             return default;

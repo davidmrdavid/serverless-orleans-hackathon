@@ -20,7 +20,7 @@ namespace OrleansConnector.Algorithm
     using System.Threading.Tasks;
     using System.Xml.Linq;
 
-    internal class ConnectionFailedEvent : DispatcherEvent
+    internal class ConnectionClosedEvent : DispatcherEvent
     {
         public Guid ConnectionId;
 
@@ -72,13 +72,13 @@ namespace OrleansConnector.Algorithm
                     {
                         var outChannel = queue.Peek();
 
-                        await Format.SendAsync(outChannel.Stream, Format.Op.ConnectionFailed, this.ConnectionId);
+                        await Format.SendAsync(outChannel.Stream, Format.Op.ConnectionClosed, this.ConnectionId);
 
-                        dispatcher.Logger.LogDebug("{dispatcher} {outChannel.channelId} {connectionId} sent ConnectionFailed", dispatcher, outChannel.ChannelId, this.ConnectionId);
+                        dispatcher.Logger.LogDebug("{dispatcher} {outChannel.channelId} {connectionId} sent ConnectionClosed", dispatcher, outChannel.ChannelId, this.ConnectionId);
                     }
                     catch (Exception exception)
                     {
-                        dispatcher.Logger.LogWarning("{dispatcher} could not send ConnectionFailed: {exception}", dispatcher, exception);
+                        dispatcher.Logger.LogWarning("{dispatcher} could not send ConnectionClosed: {exception}", dispatcher, exception);
 
                         // we can retry this
                         dispatcher.Worker.Submit(this);
@@ -92,7 +92,7 @@ namespace OrleansConnector.Algorithm
         public override void HandleTimeout(Dispatcher dispatcher)
         {
             TimeSpan elapsed = DateTime.UtcNow - this.Issued;
-            dispatcher.Logger.LogWarning("{dispatcher} {connectionId} ConnectionFailed message timed out after {elapsed}", dispatcher, this.ConnectionId, elapsed);
+            dispatcher.Logger.LogWarning("{dispatcher} {connectionId} ConnectionClosed message timed out after {elapsed}", dispatcher, this.ConnectionId, elapsed);
         }
     }
 }

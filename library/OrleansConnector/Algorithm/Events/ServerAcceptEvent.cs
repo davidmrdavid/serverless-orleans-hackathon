@@ -55,7 +55,7 @@ namespace OrleansConnector.Algorithm
                     dispatcher.Worker.Submit(this);
 
                     // we have to tear the connection down.
-                    dispatcher.Worker.Submit(new ConnectionFailedEvent() { ConnectionId = connection.ConnectionId });
+                    dispatcher.Worker.Submit(new ConnectionClosedEvent() { ConnectionId = connection.ConnectionId });
                 }
 
                 this.Response.SetResult(connection);

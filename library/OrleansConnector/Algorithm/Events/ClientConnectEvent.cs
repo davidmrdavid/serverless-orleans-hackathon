@@ -46,7 +46,7 @@ namespace OrleansConnector.Algorithm
 
                 this.OutChannel.ConnectionId = this.ConnectionId;
        
-                dispatcher.ConnectRequests.Add(this.ConnectionId, this);
+                dispatcher.ConnectRequests[this.ConnectionId] = this;
 
                 try
                 {
