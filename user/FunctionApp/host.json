@@ -1,0 +1,23 @@
+{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "Function.ConnectionTest": "Warning",
+      "Function.ConnectionTest.User": "Information",
+      "Function.startdispatchers": "Warning",
+      "Function.startdispatchers.User": "Debug",
+      "Function.startsilos": "Warning",
+      "Function.startsilos.User": "Trace",
+      "Function.Orleans": "Warning",
+      "Function.Orleans.User": "Trace"
+    }
+  },
+  "extensions": {
+    "http": {
+      "routePrefix": "",
+      "maxOutstandingRequests": 1000,
+      "maxConcurrentRequests": 500,
+      "dynamicThrottlesEnabled": false
+    }
+  }
+}
