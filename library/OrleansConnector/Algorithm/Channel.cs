@@ -8,7 +8,7 @@ namespace OrleansConnector.Algorithm
     using System.Net.Http;
     using System.Threading.Tasks;
 
-    public class Channel : IDisposable
+    public abstract class Channel : IDisposable
     {
         public string DispatcherId;
         public Guid ChannelId;
@@ -16,6 +16,6 @@ namespace OrleansConnector.Algorithm
         public Guid ConnectionId;
         public bool Disposed;
 
-        public virtual void Dispose() { }
+        public abstract void Dispose();
     }
 }

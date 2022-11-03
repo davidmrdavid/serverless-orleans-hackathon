@@ -17,10 +17,11 @@ namespace OrleansConnector.Algorithm
     {
         internal static async Task ReceiveAsync(Guid channelId, Dispatcher dispatcher, Task<Stream> streamTask)
         {
+            var channel = new InChannel();
+
             try
             {
                 var stream = await streamTask;
-                var channel = new InChannel();
                 channel.ChannelId = channelId;
 
                 dispatcher.InChannelListeners.TryAdd(channelId, channel);
@@ -43,11 +44,11 @@ namespace OrleansConnector.Algorithm
                     return;
                 }
 
-                while (!dispatcher.HostShutdownToken.IsCancellationRequested)
+                while (!dispatcher.ShutdownToken.IsCancellationRequested)
                 {
                     dispatcher.Logger.LogTrace("{dispatcher} {channelId} waiting for packet", dispatcher, channelId);
 
-                    (Format.Op op, Guid guid) = await Format.ReceiveAsync(stream, dispatcher.HostShutdownToken);
+                    (Format.Op op, Guid guid) = await Format.ReceiveAsync(stream, dispatcher.ShutdownToken);
 
                     dispatcher.Logger.LogTrace("{dispatcher} {channelId} received packet {op} {guid}", dispatcher, channelId, op, guid);
 
@@ -82,11 +83,12 @@ namespace OrleansConnector.Algorithm
 
                         case Format.Op.Closed:
                             // now closed (without ever being used)
-                            dispatcher.Logger.LogTrace("{dispatcher} {channelId} channel closed by sender", dispatcher, channelId);
+                            dispatcher.Logger.LogTrace("{dispatcher} {channelId} in-channel closed by sender", dispatcher, channelId);
+                            channel.Dispose();
                             return;
 
-                        case Format.Op.ChannelFailed:
-                            dispatcher.Worker.Submit(new ChannelFailedEvent()
+                        case Format.Op.ChannelClosed:
+                            dispatcher.Worker.Submit(new ChannelClosedEvent()
                             {
                                 ChannelId = guid,
                                 DispatcherId = channel.DispatcherId,
@@ -94,8 +96,8 @@ namespace OrleansConnector.Algorithm
                             // we can continue listening on this stream
                             continue;
 
-                        case Format.Op.ConnectionFailed:
-                            dispatcher.Worker.Submit(new ConnectionFailedEvent()
+                        case Format.Op.ConnectionClosed:
+                            dispatcher.Worker.Submit(new ConnectionClosedEvent()
                             {
                                 ConnectionId = guid,
                             });
@@ -104,14 +106,22 @@ namespace OrleansConnector.Algorithm
                     }
                 }
             }
+            catch(HttpRequestException e) when (e.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+            {
+                // seems to happen occasionally
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} contact request received 503 ServiceUnavailable", dispatcher, channelId);
+            }
             catch (Exception exception)
             {
-                dispatcher.Worker.Submit(new ChannelFailedEvent()
+                if (channel.DispatcherId != null)
                 {
-                    ChannelId = channelId,
-                    DispatcherId = dispatcher.DispatcherId,
+                    dispatcher.Worker.Submit(new ChannelClosedEvent()
+                    {
+                        ChannelId = channelId,
+                        DispatcherId = channel.DispatcherId,
 
-                });
+                    });
+                }
                 dispatcher.Logger.LogWarning("{dispatcher} {channelId} error in ListenAsync: {exception}", dispatcher, channelId, exception);
             }
             finally
@@ -124,7 +134,7 @@ namespace OrleansConnector.Algorithm
         {
             try
             {
-                this.Stream.Dispose();
+                this.Stream?.Dispose();
             }
             catch
             {

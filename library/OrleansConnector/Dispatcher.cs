@@ -19,9 +19,10 @@ namespace OrleansConnector
     using System.Threading;
     using System.Threading.Tasks;
 
-    public class Dispatcher : IDisposable, IAsyncDisposable
+    public class Dispatcher
     {
-        internal CancellationToken HostShutdownToken { get; }
+        readonly CancellationTokenSource shutdown = new CancellationTokenSource();
+        internal CancellationToken ShutdownToken => shutdown.Token;
         internal ILogger Logger { get; }
         internal Processor Worker { get; }
         public string DispatcherId { get; }
@@ -29,8 +30,6 @@ namespace OrleansConnector
         internal byte[] DispatcherIdBytes { get; }
         public Uri FunctionAddress { get; }
         public HttpClient HttpClient { get; }
-
-        IDisposable cancellationTokenRegistration;
 
         // channels
         internal SortedDictionary<string, Queue<OutChannel>> ChannelPools { get; set; }
@@ -46,11 +45,10 @@ namespace OrleansConnector
         internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
         internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
-        public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger, CancellationToken hostShutdownToken)
+        public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger)
         {
             Logger = logger;
-            Worker = new Processor(this, hostShutdownToken);
-            HostShutdownToken = hostShutdownToken;
+            Worker = new Processor(this, shutdown.Token);
             this.FunctionAddress = FunctionAddress;
             DispatcherId = $"{dispatcherIdPrefix} {dispatcherIdSuffix}";
             ShortId = dispatcherIdPrefix;
@@ -65,12 +63,33 @@ namespace OrleansConnector
             InConnections = new Dictionary<Guid, Connection>();
             AcceptQueue = new Queue<ServerAcceptEvent>();
             AcceptWaiters = new Queue<ServerConnectEvent>();
-            cancellationTokenRegistration = HostShutdownToken.Register(Dispose);
         }
 
-        public void StartChannels()
+        public ValueTask StartAsync()
         {
             Worker.Submit(new TimerEvent());
+            return default;
+        }
+
+        public ValueTask StopAsync()
+        {
+            try
+            {
+                Logger.LogError("Dispatcher {dispatcherId} is shutting down", DispatcherId);
+
+                // todo close all connections etc.
+
+                // cancel ongoing loops
+                shutdown.Cancel();
+
+                // todo wait for everything to exit
+            }
+            catch (Exception exception)
+            {
+                Logger.LogError("Dispatcher {dispatcherId} failed to shut down cleanly: {exception}", DispatcherId, exception);
+            }
+
+            return default;
         }
 
         public string PrintInformation()
@@ -84,17 +103,6 @@ namespace OrleansConnector
         public override string ToString()
         {
             return $"Dispatcher {ShortId}";
-        }
-
-        public void Dispose()
-        {
-            Task.Run(() => DisposeAsync());
-        }
-
-        public ValueTask DisposeAsync()
-        {
-            cancellationTokenRegistration?.Dispose();
-            return ShutdownAsync();
         }
 
         static byte[] GetBytes(string s)
@@ -135,14 +143,14 @@ namespace OrleansConnector
                 {
                     // this is a request sent from external admin, to start or inquire
                     httpResponseMessage.StatusCode = requestMessage.Method == HttpMethod.Get ? HttpStatusCode.OK : HttpStatusCode.Accepted;
-                    httpResponseMessage.Content = new StringContent($"{this} {PrintInformation()}");
+                    httpResponseMessage.Content = new StringContent($"{this} {PrintInformation()}\n");
                 }
                 else
                 {
                     if (from == DispatcherId)
                     {
                         // this is a request we ended up sending to ourself. So we are done with that.
-                        httpResponseMessage.StatusCode = HttpStatusCode.OK;
+                        httpResponseMessage.StatusCode = HttpStatusCode.NoContent;                 
                     }
                     else
                     {
@@ -174,7 +182,7 @@ namespace OrleansConnector
                                 await stream.FlushAsync();
                                 await stream.DisposeAsync();
 
-                                Logger.LogTrace("{dispatcher} {channelId} disposed", this, channelId);
+                                Logger.LogTrace("{dispatcher} {channelId} out-channel disposed", this, channelId);
                             }
                             catch (Exception exception)
                             {
@@ -192,20 +200,6 @@ namespace OrleansConnector
             }
 
             return httpResponseMessage;
-        }
-
-        ValueTask ShutdownAsync()
-        {
-            try
-            {
-                //TODO close and dispose everything
-            }
-            catch (Exception exception)
-            {
-                Logger.LogError("Dispatcher {dispatcherId} failed to shut down cleanly: {exception}", DispatcherId, exception);
-            }
-
-            return default;
         }
 
         internal class Processor : BatchWorker<DispatcherEvent>

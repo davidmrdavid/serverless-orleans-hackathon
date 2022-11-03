@@ -25,9 +25,8 @@ namespace OrleansConnector.Algorithm
         public override ValueTask ProcessAsync(Dispatcher dispatcher)
         {
             dispatcher.Logger.LogInformation("{dispatcher} status {information} count={count}", dispatcher, dispatcher.PrintInformation(), count);
-
             
-            MakeContactAsync(dispatcher);
+            BroadcastContactRequests(dispatcher);
 
             // remove timed out channel waiters
             dispatcher.OutChannelWaiters = Util.FilterList(
@@ -64,7 +63,7 @@ namespace OrleansConnector.Algorithm
             }
         }
 
-        internal static void MakeContactAsync(Dispatcher dispatcher)
+        internal static void BroadcastContactRequests(Dispatcher dispatcher)
         {
             int knownRemotes = dispatcher.ChannelPools.Count;
             int couponCollectorEx = (int)Math.Round(4 * knownRemotes * Math.Log(knownRemotes + 1));
@@ -98,7 +97,7 @@ namespace OrleansConnector.Algorithm
                 var uri = uriBuilder.Uri;
 
                 // Wait for the response stream and process it asynchronously
-                var responseStream = dispatcher.HttpClient.GetStreamAsync(uri, dispatcher.HostShutdownToken);
+                var responseStream = dispatcher.HttpClient.GetStreamAsync(uri, dispatcher.ShutdownToken);
                 var _ = Task.Run(() => InChannel.ReceiveAsync(channelId, dispatcher, responseStream));
                 return true;
             }

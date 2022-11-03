@@ -57,7 +57,6 @@ namespace ConnectionTest
             return httpResponseMessage;
         }
 
-
         [FunctionName("CallTest")]
         public static async Task<HttpResponseMessage> CallTest(
            [HttpTrigger(AuthorizationLevel.Anonymous, methods: "post", Route = "calltest")] HttpRequestMessage req,
@@ -94,6 +93,22 @@ namespace ConnectionTest
             httpResponseMessage.RequestMessage = req;
             httpResponseMessage.Content = new StringContent($"caller completed successfully after receiving {linesReceived} lines in {stopwatch.Elapsed}.\n");
             return httpResponseMessage;
+        }
+
+        [FunctionName("TestShutdown")]
+        public static async Task TestShutdown(
+           [HttpTrigger(AuthorizationLevel.Anonymous, methods: "get", Route = "testshutdown")] HttpRequestMessage req,
+           CancellationToken token,
+           ILogger log)
+        {
+            try
+            {
+                await Task.Delay(TimeSpan.FromSeconds(300), token);
+            }
+            catch (Exception e)
+            {
+                log.LogError("canceled {e}", e);
+            }
         }
     }
 }

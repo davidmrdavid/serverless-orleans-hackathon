@@ -25,14 +25,14 @@ namespace OrleansConnector.Algorithm
             ConnectAndSolicit,
             Accept,
             AcceptAndSolicit,
-            ConnectionFailed,
-            ChannelFailed,
+            ConnectionClosed,
+            ChannelClosed,
             Closed,
         }
 
         const int packetSize = 17;
 
-        public static async ValueTask SendAsync(Stream s, Op op, Guid connectionId)
+        public static async ValueTask SendAsync(StreamWrapper s, Op op, Guid connectionId)
         {
             var buffer = new byte[packetSize];
             buffer[0] = (byte)op;
