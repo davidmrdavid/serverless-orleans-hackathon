@@ -43,6 +43,9 @@ namespace OrleansConnector.Algorithm
                         await waiter.ProcessAsync(dispatcher);
                     }
                 }
+
+                // we just discovered a new node. Means we should be broadcasting.
+                dispatcher.DoBroadcast();
             }
             else if (queue.Count > maxPool)
             {

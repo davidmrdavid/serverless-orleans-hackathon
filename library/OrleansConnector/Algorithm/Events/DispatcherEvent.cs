@@ -10,16 +10,6 @@ namespace OrleansConnector.Algorithm
     {
         public abstract ValueTask ProcessAsync(Dispatcher dispatcher);
 
-        public void Reschedule(Dispatcher dispatcher, TimeSpan delay)
-        {
-            var _ = ScheduleNextPassAsync();
-            async Task ScheduleNextPassAsync()
-            {
-                await Task.Delay(delay);
-                dispatcher.Worker.Submit(this);
-            }
-        }
-
         public virtual bool CancelWithConnection(Guid connectionId) => false;
 
         public virtual bool TimedOut => false;
@@ -27,6 +17,5 @@ namespace OrleansConnector.Algorithm
         public virtual void HandleTimeout(Dispatcher dispatcher) 
         {
         }
-
     }
 }

@@ -63,7 +63,7 @@ namespace OrleansConnector.Algorithm
 
             if (this.DoServerBroadcast)
             {
-                TimerEvent.BroadcastContactRequests(dispatcher);
+                dispatcher.DoBroadcast();
             }
         }
 

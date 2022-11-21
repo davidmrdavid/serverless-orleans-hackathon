@@ -45,6 +45,11 @@ namespace OrleansConnector
         internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
         internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
+        internal TaskCompletionSource<bool> BroadcastFlag { get; set; } = new TaskCompletionSource<bool>();
+        public void DoBroadcast() => BroadcastFlag.TrySetResult(true);
+
+        public bool ShutdownImminent { get; set; } // if true, we are no longer initiating new connection. Used to prepare for shutdown.
+
         public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger)
         {
             Logger = logger;
@@ -122,13 +127,13 @@ namespace OrleansConnector
 
             try
             {
-                string from = null;
+                string fromDispatcher = null;
                 Guid channelId = default;
 
                 if (requestMessage.Headers.TryGetValues("DispatcherId", out var values))
                 {
                     var query = requestMessage.RequestUri.ParseQueryString();
-                    from = values.FirstOrDefault();
+                    fromDispatcher = values.FirstOrDefault();
                     string channelIdString = query["channelId"];
                     bool success = Guid.TryParse(channelIdString, out channelId);
                     if (!success)
@@ -139,7 +144,7 @@ namespace OrleansConnector
                     }
                 }
 
-                if (from == null)
+                if (fromDispatcher == null)
                 {
                     // this is a request sent from external admin, to start or inquire
                     httpResponseMessage.StatusCode = requestMessage.Method == HttpMethod.Get ? HttpStatusCode.OK : HttpStatusCode.Accepted;
@@ -147,7 +152,7 @@ namespace OrleansConnector
                 }
                 else
                 {
-                    if (from == DispatcherId)
+                    if (fromDispatcher == DispatcherId)
                     {
                         // this is a request we ended up sending to ourself. So we are done with that.
                         httpResponseMessage.StatusCode = HttpStatusCode.NoContent;                 
@@ -155,7 +160,8 @@ namespace OrleansConnector
                     else
                     {
                         // this is a request sent from some other worker. We keep the response channel open.
-                        Logger.LogTrace("{dispatcher} {channelId} contacted by {destination}", this, channelId, from);
+                        Logger.LogTrace("{dispatcher} {channelId} contacted by {destination}", this, channelId, fromDispatcher);
+                        bool isFirst = !this.InChannelListeners.Values.Any(channel => channel.DispatcherId == fromDispatcher);
                         httpResponseMessage.StatusCode = HttpStatusCode.Accepted;
                         httpResponseMessage.Content = new PushStreamContent(async (stream, content, context) =>
                         {
@@ -164,7 +170,7 @@ namespace OrleansConnector
                                 var completionPromise = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
 
                                 var outChannel = new OutChannel();
-                                outChannel.DispatcherId = from;
+                                outChannel.DispatcherId = fromDispatcher;
                                 outChannel.ChannelId = channelId;
 
                                 await stream.WriteAsync(DispatcherIdBytes);
@@ -189,6 +195,11 @@ namespace OrleansConnector
                                 Logger.LogWarning("{dispatcher} {channelId} error in PushStreamContent: {exception}", this, channelId, exception);
                             }
                         });
+
+                        if (isFirst)
+                        {
+                            this.DoBroadcast();
+                        }
                     }
                 }
             }
