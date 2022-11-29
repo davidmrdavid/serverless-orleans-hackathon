@@ -35,13 +35,27 @@ namespace OrleansConnector
         static volatile TaskCompletionSource<bool> stalled = new TaskCompletionSource<bool>();
 
         public static Task<Silo> GetSiloAsync() => SiloPromise.Task;
+        public static Task<Dispatcher> GetDispatcherAsync() => DispatcherPromise.Task;
 
-        public static async Task<HttpResponseMessage> DispatchAsync(HttpRequestMessage requestMessage, Action<ISiloBuilder> configureOrleans, ILogger logger, CancellationToken hostShutdownToken)
+        public static async Task<HttpResponseMessage> DispatchAsync(
+            HttpRequestMessage requestMessage,
+            Action<ISiloBuilder> configureOrleans, 
+            ILogger logger, 
+            CancellationToken hostShutdownToken,
+            Action<Dispatcher> onStartup = null)
         {
             // start the dispatcher if we haven't already on this worker
             if (Interlocked.CompareExchange(ref started, 1, 0) == 0)
             {
-                var _ = Task.Run(() => StartSiloAndDispatcher(requestMessage, configureOrleans, logger));
+                var _ = Task.Run(async () =>
+                {
+                    await StartSiloAndDispatcher(requestMessage, configureOrleans, logger);
+
+                    if (onStartup != null)
+                    {
+                        onStartup(await Static.GetDispatcherAsync());
+                    }
+                });
             }
 
             var dispatcher = await DispatcherPromise.Task.ConfigureAwait(false);
@@ -71,13 +85,16 @@ namespace OrleansConnector
 
 
 
-        public static async Task StartSiloAndDispatcher(HttpRequestMessage requestMessage, Action<ISiloBuilder> configureOrleans, ILogger logger)
+        public static async Task StartSiloAndDispatcher(
+            HttpRequestMessage requestMessage,
+            Action<ISiloBuilder> configureOrleans, 
+            ILogger logger)
         {
             try
             {
                 var query = requestMessage.RequestUri.ParseQueryString();
-                string dispatcherOnlyValue = query["dispatcherOnly"];
-                bool.TryParse(dispatcherOnlyValue, out bool dispatcherOnly);
+                string dispatcherTestValue = query["dispatcherTest"];
+                bool.TryParse(dispatcherTestValue, out bool dispatcherTest);
                 string clusterIdValue = query["clusterId"];
 
                 // to construct the generic entry point, we have to remove the channel ID from the query
@@ -102,9 +119,68 @@ namespace OrleansConnector
                 await newDispatcher.StartAsync();
                 DispatcherPromise.SetResult(newDispatcher);
 
-                if (dispatcherOnly)
+                if (dispatcherTest)
                 {
+                    // we are running dispatcher tests, so don't start the silo
                     SiloPromise.SetResult(null);
+
+                    // instead, register a "server" that accepts connections and echoes everything
+                    Task _ = Task.Run(AcceptLoopAsync);
+                    async Task AcceptLoopAsync()
+                    {
+                        logger.LogInformation("{dispatcher} starting AcceptLoop.", newDispatcher);
+                        try
+                        {
+                            var connectionFactory = new ConnectionFactory(newDispatcher);
+                            while (!newDispatcher.ShutdownToken.IsCancellationRequested)
+                            {
+                                Connection c = await connectionFactory.AcceptAsync();
+                                Task _ = Task.Run(ConnectionLoopAsync);
+                                async Task ConnectionLoopAsync()
+                                {
+                                    logger.LogInformation("{dispatcher} starting ConnectionLoop for {connectionId}.", newDispatcher, c.ConnectionId);
+                                    try
+                                    {
+                                        //await c.InStream.CopyToAsync(c.OutStream, newDispatcher.ShutdownToken);
+
+                                        using StreamReader reader = new StreamReader(c.InStream);
+                                        using StreamWriter writer = new StreamWriter(c.OutStream);
+
+                                        while (true)
+                                        {
+                                            string line = await reader.ReadLineAsync();
+                                            if (line == null)
+                                            {
+                                                break;
+                                            }
+                                            await writer.WriteLineAsync(line);
+                                            await writer.FlushAsync();
+                                        }
+
+                                        await writer.DisposeAsync();
+                                    }
+                                    catch(OperationCanceledException)
+                                    {
+                                        logger.LogInformation("{dispatcher} ConnectionLoop for {connectionId} was canceled.", newDispatcher, c.ConnectionId);
+
+                                    }
+                                    catch (Exception ex)
+                                    {
+                                        logger.LogError("{dispatcher} error in ConnectionLoop for {connectionId}: {exception}", newDispatcher, c.ConnectionId, ex);
+                                    }
+                                }
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            logger.LogInformation("{dispatcher} AcceptLoop was canceled.", newDispatcher);
+
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.LogError("{dispatcher} error in AcceptLoop: {exception}", newDispatcher, ex);
+                        }
+                    }
                 }
                 else
                 {

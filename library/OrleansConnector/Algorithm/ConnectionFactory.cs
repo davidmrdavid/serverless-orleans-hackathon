@@ -24,7 +24,7 @@ namespace OrleansConnector.Algorithm
             this.dispatcher = dispatcher;
         }
 
-        public Task<Connection> ConnectAsync(string machine)
+        public Task<Connection> ConnectAsync(string machine, bool cancelIfNotAvailableImmediately = false)
         {
 
             var connectEvent = new ClientConnectEvent()
@@ -33,6 +33,7 @@ namespace OrleansConnector.Algorithm
                 ToMachine = machine,
                 Issued = DateTime.UtcNow,
                 Response = new TaskCompletionSource<Connection>(),
+                DontQueue = cancelIfNotAvailableImmediately,
             };
             dispatcher.Logger.LogDebug("{dispatcher} {connectionId:N} connect to {destination} called", dispatcher, connectEvent.ConnectionId, connectEvent.ToMachine);
             this.dispatcher.Worker.Submit(connectEvent);
