@@ -3,6 +3,7 @@
 
 namespace OrleansConnector.Algorithm
 {
+    using Azure.Core;
     using Microsoft.Extensions.Azure;
     using Microsoft.Extensions.Logging;
     using OrleansConnector;
@@ -23,6 +24,7 @@ namespace OrleansConnector.Algorithm
         public DateTime Issued;
         public TaskCompletionSource<Connection> Response;
         public OutChannel OutChannel;
+        public bool DontQueue;
 
         public override bool CancelWithConnection(Guid connectionId) => connectionId == this.ConnectionId;
 
@@ -32,8 +34,16 @@ namespace OrleansConnector.Algorithm
 
             if (key == null)
             {
-                dispatcher.Logger.LogDebug("{dispatcher} {connectionId} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
-                dispatcher.OutChannelWaiters.Add(this);
+                if (this.DontQueue)
+                {
+                    dispatcher.Logger.LogDebug("{dispatcher} {connectionId} connect to {destination} canceled because destination was not found in pool", dispatcher, this.ConnectionId, this.ToMachine);
+                    this.Response.SetResult(null);
+                }
+                else
+                {
+                    dispatcher.Logger.LogDebug("{dispatcher} {connectionId} connect to {destination} queued", dispatcher, this.ConnectionId, this.ToMachine);
+                    dispatcher.OutChannelWaiters.Add(this);
+                }
             }
             else
             {

@@ -5,6 +5,7 @@ namespace OrleansConnector
 {
     using Azure;
     using Microsoft.Extensions.Logging;
+    using Orleans;
     using OrleansConnector.Algorithm;
     using System;
     using System.Collections.Concurrent;
@@ -65,6 +66,13 @@ namespace OrleansConnector
             AcceptWaiters = new Queue<ServerConnectEvent>();
         }
 
+        public IEnumerable<string> Remotes =>
+            this.ChannelPools.Keys      
+            .Union(this.OutConnections.Values.Select(conn => conn.OutChannel.DispatcherId).Distinct())
+            .Union(this.ConnectRequests.Values.Select(r => r.ToMachine).Distinct())
+            .Union(this.InConnections.Values.Select(conn => conn.OutChannel.DispatcherId).Distinct())
+            .OrderBy((dispatcherId) => dispatcherId.Split(' ')[1]);
+
         public ValueTask StartAsync()
         {
             Worker.Submit(new TimerEvent());
@@ -92,12 +100,22 @@ namespace OrleansConnector
             return default;
         }
 
+        public string PrintInformation(IEnumerable<string> remotes)
+        {
+            var poolSizes = string.Join(",", remotes
+                .Select(id => ChannelPools.TryGetValue(id, out var q) ? Blank(q.Count) : id == this.DispatcherId ? "X" : " "));
+            var inChannels = InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).ToDictionary(g => g.Key);
+            var chListeners = string.Join(",", remotes
+                .Select(id => inChannels.TryGetValue(id, out var g) ? Blank(g.Count()) : id == this.DispatcherId ? "X" : " "));
+            return $"ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={Blank(OutChannelWaiters.Count)} ConnReq={Blank(ConnectRequests.Count)} "
+                + $"acceptQ={Blank(AcceptQueue.Count)} acceptW={Blank(AcceptWaiters.Count)} outConn={Blank(OutConnections.Count)} inConn={Blank(InConnections.Count)}";
+
+            string Blank(int x) => x == 0 ? " " : x.ToString();
+        }
+
         public string PrintInformation()
         {
-            var poolSizes = string.Join(",", ChannelPools.Values.Select(q => q.Count.ToString()));
-            var chListeners = string.Join(",", InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).Select(g => g.Count()));
-            return $"ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={OutChannelWaiters.Count} ConnReq={ConnectRequests.Count} "
-                + $"acceptQ={AcceptQueue.Count} acceptW={AcceptWaiters.Count} outConn={OutConnections.Count} inConn={InConnections.Count}";
+            return this.PrintInformation(this.Remotes);
         }
 
         public override string ToString()
