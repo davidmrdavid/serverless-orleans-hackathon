@@ -24,10 +24,6 @@ namespace OrleansConnector.Algorithm
 
         public override ValueTask ProcessAsync(Dispatcher dispatcher)
         {
-            dispatcher.Logger.LogInformation("{dispatcher} status {information} count={count}", dispatcher, dispatcher.PrintInformation(), count);
-            
-            BroadcastContactRequests(dispatcher);
-
             // remove timed out channel waiters
             dispatcher.OutChannelWaiters = Util.FilterList(
                  dispatcher.OutChannelWaiters,
@@ -40,51 +36,73 @@ namespace OrleansConnector.Algorithm
                  element => !element.TimedOut,
                  element => element.HandleTimeout(dispatcher));
 
-            this.Reschedule(dispatcher, nextBroadcast());
+            // print status information
+            dispatcher.Logger.LogInformation("{dispatcher} status {information} count={count}", dispatcher, dispatcher.PrintInformation(), count);
+
+            if (!dispatcher.ShutdownImminent)
+            {
+                // broadcast contact requests
+                if (dispatcher.BroadcastFlag.Task.IsCompleted)
+                {
+                    dispatcher.BroadcastFlag = new TaskCompletionSource<bool>();
+                }
+                else
+                {
+                    count++;
+                }
+                BroadcastContactRequests(dispatcher);
+
+
+                // schedule next iteration
+                var _ = Next();
+                async Task Next()
+                {
+                    Task nextScheduledBroadcast = this.nextBroadcast();
+                    await Task.Delay(TimeSpan.FromSeconds(2));  // enforce a minimum delay between broadcasts to avoid storm
+                    await Task.WhenAny(nextScheduledBroadcast, dispatcher.BroadcastFlag.Task);
+                    dispatcher.Worker.Submit(this);
+                };
+            }
 
             return default;
         }
 
-        TimeSpan nextBroadcast()
+        Task nextBroadcast()
         {
-            count++;
-
             if (count < 5)
             {
-                return TimeSpan.FromSeconds(10 * random.NextDouble());
+                // For the first ~25 seconds, we issue 5 broadcasts at highly random times
+                return Task.Delay(TimeSpan.FromSeconds(10 * random.NextDouble()));
             }
             else if (count % 10 == 5)
             {
-                return TimeSpan.FromSeconds(random.Next(30));
+                // once every 10 times we re-randomize the timing
+                return Task.Delay(TimeSpan.FromSeconds(random.Next(30)));
             }
             else
             {
-                return TimeSpan.FromSeconds(60);
+                // the standard delay between background broadcasts
+                return Task.Delay(TimeSpan.FromSeconds(60));
             }
         }
 
-        internal static void BroadcastContactRequests(Dispatcher dispatcher)
+        void BroadcastContactRequests(Dispatcher dispatcher)
         {
             int knownRemotes = dispatcher.ChannelPools.Count;
-            int couponCollectorEx = (int)Math.Round(4 * knownRemotes * Math.Log(knownRemotes + 1));
+            int couponCollectorEx = (int)Math.Round(4 * (knownRemotes + 4) * Math.Log(knownRemotes + 4));
             int numRequests = Math.Max(couponCollectorEx, 10);
-
-            int numSuccessful = 0;
+   
             for (int i = 0; i < numRequests; i++)
             {
-                if (MakeContactAsync(dispatcher, dispatcher.FunctionAddress))
-                {
-                    numSuccessful++;
-                }
+                MakeContactAsync(dispatcher);            
             }
 
             dispatcher.Logger.LogDebug("{dispatcher} sent {numRequests} contact requests", dispatcher, numRequests);
         }
 
-        static bool MakeContactAsync(Dispatcher dispatcher, Uri target)
+        bool MakeContactAsync(Dispatcher dispatcher)
         {
             Guid channelId = Guid.NewGuid(); // the unique id for this channel
-
             try
             {
                 dispatcher.Logger.LogTrace("{dispatcher} {channelId} sending contact request", dispatcher, channelId);

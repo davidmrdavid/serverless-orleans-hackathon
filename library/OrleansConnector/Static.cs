@@ -211,18 +211,33 @@ namespace OrleansConnector
             if (Interlocked.CompareExchange(ref stopped, 1, 0) == 0)
             {
                 var dispatcher = await DispatcherPromise.Task;
-                var silo = await SiloPromise.Task;
 
-                if (silo != null)
+                // stop broadcasting immediately, but don't stop dispatcher just yet
+                // so that silos can still close their connectionss
+                dispatcher.ShutdownImminent = true;
+
+                var timeout = TimeSpan.FromSeconds(10);
+                var timeoutTask = Task.Delay(timeout);
+                var firstTaskToComplete = await Task.WhenAny(StopSilo(), timeoutTask);
+                if (firstTaskToComplete == timeoutTask)
                 {
-                    try
+                    dispatcher.Logger.LogError("{dispatcher} failed to stop silo within {timeout}", dispatcher, timeout);
+                }
+
+                async Task StopSilo()
+                {
+                    var silo = await SiloPromise.Task;
+                    if (silo != null)
                     {
-                        dispatcher.Logger.LogDebug("{dispatcher} stopping silo", dispatcher);
-                        await silo.Host.StopAsync();
-                    }
-                    catch (Exception exception)
-                    {
-                        dispatcher.Logger.LogError("{dispatcher} failed to stop silo cleanly: {exception}", dispatcher, exception);
+                        try
+                        {
+                            dispatcher.Logger.LogDebug("{dispatcher} stopping silo", dispatcher);
+                            await silo.Host.StopAsync();
+                        }
+                        catch (Exception exception)
+                        {
+                            dispatcher.Logger.LogError("{dispatcher} failed to stop silo cleanly: {exception}", dispatcher, exception);
+                        }
                     }
                 }
 
