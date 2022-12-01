@@ -28,6 +28,8 @@ namespace OrleansConnector.Algorithm
 
         public DateTime Issued = DateTime.UtcNow;
 
+        public override string WaitsForDispatcher => this.ToSend;
+
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
         {
             Util.FilterDictionary(dispatcher.ConnectRequests, x => !x.CancelWithConnection(this.ConnectionId));
@@ -53,14 +55,14 @@ namespace OrleansConnector.Algorithm
                 }
                 if (connection.OutChannel != null)
                 {
-                    ToSend = connection.OutChannel.DispatcherId;
+                    this.ToSend = connection.OutChannel.DispatcherId;
                     connection.OutChannel.Dispose();
                 }
 
                 connection.FailureNotify();
             }
 
-            if (ToSend != null)
+            if (this.ToSend != null)
             {
                 if (!dispatcher.ChannelPools.TryGetValue(ToSend, out var queue))
                 {

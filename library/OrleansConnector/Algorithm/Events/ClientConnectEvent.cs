@@ -26,6 +26,8 @@ namespace OrleansConnector.Algorithm
         public OutChannel OutChannel;
         public bool DontQueue;
 
+        public override string WaitsForMachine => this.ToMachine;
+
         public override bool CancelWithConnection(Guid connectionId) => connectionId == this.ConnectionId;
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)
