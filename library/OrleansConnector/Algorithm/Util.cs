@@ -10,7 +10,7 @@ namespace OrleansConnector.Algorithm
 {
     public static class Util
     {
-        public static void FilterQueues<K, V>(SortedDictionary<K, Queue<V>> queues, Func<V, bool> predicate)
+        public static void FilterQueues<K, V>(SortedDictionary<K, Queue<V>> queues, Func<V, bool> predicate, Action<K,V> action = null)
         {
             List<K> toRemove = null;
             var keep = new List<V>();
@@ -23,6 +23,10 @@ namespace OrleansConnector.Algorithm
                         if (predicate(element))
                         {
                             keep.Add(element);
+                        }
+                        else
+                        {
+                            action?.Invoke(kvp.Key, element);
                         }
                     }
                     if (keep.Count == 0)

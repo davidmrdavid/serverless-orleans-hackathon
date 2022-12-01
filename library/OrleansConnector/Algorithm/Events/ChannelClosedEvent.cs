@@ -56,7 +56,7 @@ namespace OrleansConnector.Algorithm
             }
             else
             {
-                Util.FilterQueues(dispatcher.ChannelPools, x => x.ChannelId != this.ChannelId);
+                Util.FilterQueues(dispatcher.ChannelPools, x => x.ChannelId != this.ChannelId, (r,c) => dispatcher.Filter.TryRemove(r, out _));
 
                 if (!dispatcher.ChannelPools.TryGetValue(this.DispatcherId, out var queue))
                 {

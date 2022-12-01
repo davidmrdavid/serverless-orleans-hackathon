@@ -15,6 +15,7 @@ namespace OrleansConnector.Algorithm
         public StreamWrapper Stream;
         public Guid ConnectionId;
         public bool Disposed;
+        public DateTime Since;
 
         public abstract void Dispose();
     }
