@@ -75,7 +75,7 @@ namespace ConnectionTest
                                 queryBuilder.Add("subquery", "1");
                                 queryBuilder.Add("all", all.ToString());
                                 uriBuilder.Query = queryBuilder.ToString();
-                                var response = await dispatcher.HttpClient.GetAsync(uriBuilder.Uri);
+                                var response = await httpClient.GetAsync(uriBuilder.Uri);
                                 if (response.IsSuccessStatusCode)
                                 {
                                     var content = await response.Content.ReadAsStringAsync();
@@ -108,7 +108,7 @@ namespace ConnectionTest
                                 queryBuilder.Add("subquery", "2");
                                 uriBuilder.Query = queryBuilder.ToString();
                                 HttpContent postContent = new StringContent(JsonConvert.SerializeObject(orderedRemotes));
-                                var response = await dispatcher.HttpClient.PostAsync(uriBuilder.Uri, postContent);
+                                var response = await httpClient.PostAsync(uriBuilder.Uri, postContent);
                                 if (response.IsSuccessStatusCode)
                                 {
                                     var content = await response.Content.ReadAsStringAsync();
@@ -162,5 +162,7 @@ namespace ConnectionTest
                 return new ObjectResult($"exception in Workers: {e}\n") { StatusCode = (int)HttpStatusCode.InternalServerError };
             }
         }
+
+        static HttpClient httpClient = new HttpClient() { Timeout = TimeSpan.FromSeconds(30) };
     }
 }

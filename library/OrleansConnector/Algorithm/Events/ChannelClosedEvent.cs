@@ -23,6 +23,7 @@ namespace OrleansConnector.Algorithm
 
     internal class ChannelClosedEvent : DispatcherEvent
     {
+        public string Reason;
         public Guid ChannelId;
         public string DispatcherId;
         public Channel Channel;
@@ -54,29 +55,33 @@ namespace OrleansConnector.Algorithm
                     req => req.OutChannel.ChannelId != this.ChannelId,
                     (k,v) => v.Response.TrySetException(new IOException($"Could not reach {v.ToMachine} because connection closed unexpectedly")));
             }
-            else
+            else 
             {
                 Util.FilterQueues(dispatcher.ChannelPools, x => x.ChannelId != this.ChannelId);
 
-                if (!dispatcher.ChannelPools.TryGetValue(this.DispatcherId, out var queue))
+                if (!Reason.StartsWith("From"))
                 {
-                    dispatcher.OutChannelWaiters.Add(this);
-                }
-                else
-                {
-                    var outChannel = queue.Peek();
-                    try
+                    // send a ChannelClosed to the other end
+                    if (!dispatcher.ChannelPools.TryGetValue(this.DispatcherId, out var queue))
                     {
-                        await Format.SendAsync(outChannel.Stream, Format.Op.ChannelClosed, this.ChannelId);
-
-                        dispatcher.Logger.LogTrace("{dispatcher} {channelId} sent ChannelClosed", dispatcher, outChannel.ChannelId);
+                        dispatcher.OutChannelWaiters.Add(this);
                     }
-                    catch (Exception exception)
+                    else
                     {
-                        dispatcher.Logger.LogWarning("{dispatcher} {channelId} could not send ChannelClosed: {exception}", dispatcher, outChannel.ChannelId, exception);
+                        var outChannel = queue.Peek();
+                        try
+                        {
+                            await Format.SendAsync(outChannel.Stream, Format.Op.ChannelClosed, this.ChannelId);
 
-                        // we can retry this
-                        dispatcher.Worker.Submit(this);
+                            dispatcher.Logger.LogTrace("{dispatcher} {channelId} sent ChannelClosed {reason}", dispatcher, outChannel.ChannelId, this.Reason);
+                        }
+                        catch (Exception exception)
+                        {
+                            dispatcher.Logger.LogWarning("{dispatcher} {channelId} could not send ChannelClosed: {exception}", dispatcher, outChannel.ChannelId, exception);
+
+                            // we can retry this
+                            dispatcher.Worker.Submit(this);
+                        }
                     }
                 }
             }
