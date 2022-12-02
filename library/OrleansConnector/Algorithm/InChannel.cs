@@ -23,6 +23,7 @@ namespace OrleansConnector.Algorithm
             {
                 var stream = await streamTask;
                 channel.ChannelId = channelId;
+                channel.Since = DateTime.UtcNow;
 
                 dispatcher.InChannelListeners.TryAdd(channelId, channel);
 

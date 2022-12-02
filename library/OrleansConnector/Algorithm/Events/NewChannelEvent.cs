@@ -47,11 +47,19 @@ namespace OrleansConnector.Algorithm
                 // we just discovered a new node. Means we should be broadcasting.
                 dispatcher.DoBroadcast();
             }
-            else if (queue.Count > maxPool)
+            
+            if (queue.Count >= maxPool)
             {
-                var excessChannel = queue.Dequeue();
-                dispatcher.Logger.LogTrace("{dispatcher} {channelId} removed excess out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, excessChannel.DispatcherId);
-                excessChannel.Dispose();
+                if (queue.Count > maxPool)
+                {
+                    var excessChannel = queue.Dequeue();
+                    dispatcher.Logger.LogTrace("{dispatcher} {channelId} removed excess out-channel to {destination}", dispatcher, this.OutChannel.ChannelId, excessChannel.DispatcherId);
+                    excessChannel.Dispose();
+                }
+
+                // since the pool is full, filter incoming requests
+                var nextRefresh = queue.Peek().Since + TimeSpan.FromMinutes(8);
+                dispatcher.Filter[this.OutChannel.DispatcherId] = nextRefresh;
             }
         }
     }

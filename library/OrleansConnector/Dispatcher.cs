@@ -47,6 +47,9 @@ namespace OrleansConnector
         internal Queue<ServerAcceptEvent> AcceptQueue { get; set; }
         internal Queue<ServerConnectEvent> AcceptWaiters { get; set; }
 
+        // filter for incoming. For full pools, contains the oldest entry. 
+        internal ConcurrentDictionary<string, DateTime> Filter { get; set; }
+
         internal TaskCompletionSource<bool> BroadcastFlag { get; set; } = new TaskCompletionSource<bool>();
         public void DoBroadcast() => BroadcastFlag.TrySetResult(true);
 
@@ -70,6 +73,7 @@ namespace OrleansConnector
             InConnections = new Dictionary<Guid, Connection>();
             AcceptQueue = new Queue<ServerAcceptEvent>();
             AcceptWaiters = new Queue<ServerConnectEvent>();
+            Filter = new ConcurrentDictionary<string, DateTime>();
         }
 
         public IEnumerable<string> Remotes =>
@@ -212,6 +216,12 @@ namespace OrleansConnector
                         // this is a request we ended up sending to ourself. So we are done with that.
                         httpResponseMessage.StatusCode = HttpStatusCode.NoContent;                 
                     }
+                    else if (this.Filter.TryGetValue(fromDispatcher, out var nextRefresh) && DateTime.UtcNow < nextRefresh)
+                    {
+                        // this is a request sent from some other worker, for which we already have a full pool.
+                        // We don't need to keep this connection going, so we respond with empty content.
+                        httpResponseMessage.StatusCode = HttpStatusCode.OK;
+                    }
                     else
                     {
                         // this is a request sent from some other worker. We keep the response channel open.
@@ -227,6 +237,7 @@ namespace OrleansConnector
                                 var outChannel = new OutChannel();
                                 outChannel.DispatcherId = fromDispatcher;
                                 outChannel.ChannelId = channelId;
+                                outChannel.Since = DateTime.UtcNow;
 
                                 await stream.WriteAsync(DispatcherIdBytes);
                                 await stream.FlushAsync();

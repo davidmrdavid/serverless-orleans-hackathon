@@ -55,6 +55,7 @@ namespace OrleansConnector.Algorithm
                 {
                     dispatcher.ChannelPools.Remove(key);
                 }
+                dispatcher.Filter.TryRemove(key, out _);
 
                 this.OutChannel.ConnectionId = this.ConnectionId;
        

@@ -45,6 +45,7 @@ namespace OrleansConnector.Algorithm
                         dispatcher.ChannelPools.Remove(this.InChannel.DispatcherId);
                         DoClientBroadcast = true;
                     }
+                    dispatcher.Filter.TryRemove(this.InChannel.DispatcherId, out _);
                     this.OutChannel.ConnectionId = this.ConnectionId;
                 }
             }
