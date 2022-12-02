@@ -28,6 +28,8 @@ namespace OrleansConnector.Algorithm
         public Channel Channel;
         public DateTime Issued = DateTime.UtcNow;
 
+        public override string WaitsForDispatcher => this.DispatcherId;
+
         internal ChannelClosedEvent() { }
 
         public override async ValueTask ProcessAsync(Dispatcher dispatcher)

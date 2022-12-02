@@ -26,6 +26,7 @@ namespace ConnectionTest
     using System.Collections.Generic;
     using Microsoft.Azure.WebJobs.Host.Scale;
     using System.Linq;
+    using System.Text.RegularExpressions;
 
     public static class Workers
     {
@@ -44,15 +45,25 @@ namespace ConnectionTest
                 var query = requestMessage.RequestUri.ParseQueryString();
                 int subquery = 0;
                 bool all = false;
+                bool printChannelMatrix = true;
+                bool printConnectionMatrix = false;
                 foreach (String s in query.AllKeys)
                 {
-                    if (s == "subquery")
+                    if (s.ToLower() == "subquery")
                     {
                         subquery = int.Parse(query[s]);
                     }
-                    if (s == "all")
+                    if (s.ToLower() == "all")
                     {
                         all = bool.Parse(query[s]);
+                    }
+                    if (s.ToLower() == "printchannelmatrix")
+                    {
+                        printChannelMatrix = bool.Parse(query[s]);
+                    }
+                    if (s.ToLower() == "printconnectionmatrix")
+                    {
+                        printConnectionMatrix = bool.Parse(query[s]);
                     }
                 }
 
@@ -106,6 +117,8 @@ namespace ConnectionTest
                                 UriBuilder uriBuilder = new UriBuilder(requestMessage.RequestUri);
                                 QueryBuilder queryBuilder = new QueryBuilder();
                                 queryBuilder.Add("subquery", "2");
+                                queryBuilder.Add("printChannelMatrix", printChannelMatrix.ToString());
+                                queryBuilder.Add("printConnectionMatrix", printConnectionMatrix.ToString());
                                 uriBuilder.Query = queryBuilder.ToString();
                                 HttpContent postContent = new StringContent(JsonConvert.SerializeObject(orderedRemotes));
                                 var response = await dispatcher.HttpClient.PostAsync(uriBuilder.Uri, postContent);
@@ -129,8 +142,12 @@ namespace ConnectionTest
                                 else
                                 {
                                     string diag = string.Join(' ', orderedRemotes.Select(r2 => r == r2 ? "X" : " "));
-                                    sb.AppendLine($"ChOut=[{diag}] ChIn=[{diag}] ChW=  ConnReq=  "
-                                          + $"acceptQ=  acceptW=  outConn=  inConn= ");
+                                    string outCh = printChannelMatrix ? $"[{diag}]" : " ";
+                                    string inCh = printChannelMatrix ? $"[{diag}]" : " ";
+                                    string outConn = printConnectionMatrix ? $"[{diag}]" : " ";
+                                    string inConn = printConnectionMatrix ? $"[{diag}]" : " ";
+
+                                    sb.AppendLine($"OutCh={outCh} InCh={inCh} OutConn={outConn} InConn={inConn} ConnReq=  AcceptQ=  AcceptW=  ChW=");
                                 }
                             }
                         }
@@ -148,7 +165,7 @@ namespace ConnectionTest
                         {
                             var content = await requestMessage.Content.ReadAsStringAsync();
                             var workers = JsonConvert.DeserializeObject<List<string>>(content);
-                            var information = dispatcher.PrintInformation(workers);
+                            var information = dispatcher.PrintInformation(workers, printChannelMatrix, printConnectionMatrix);
                             var response = (dispatcher.DispatcherId, information);
                             sb.Append(JsonConvert.SerializeObject(response));
                         }

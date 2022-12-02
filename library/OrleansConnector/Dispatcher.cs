@@ -8,6 +8,7 @@ namespace OrleansConnector
     using Orleans;
     using OrleansConnector.Algorithm;
     using System;
+    using System.Collections;
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Data.Common;
@@ -76,7 +77,10 @@ namespace OrleansConnector
             .Union(this.OutConnections.Values.Select(conn => conn.OutChannel.DispatcherId).Distinct())
             .Union(this.ConnectRequests.Values.Select(r => r.ToMachine).Distinct())
             .Union(this.InConnections.Values.Select(conn => conn.OutChannel.DispatcherId).Distinct())
+            .Union(this.OutChannelWaiters.SelectMany(w => SingletonEnum(w.WaitsForDispatcher)))
             .OrderBy((dispatcherId) => dispatcherId.Split(' ')[1]);
+
+        static IEnumerable<string> SingletonEnum(string s) => s == null ? Enumerable.Empty<string>() : new[] { s };
 
         public ValueTask StartAsync()
         {
@@ -105,22 +109,55 @@ namespace OrleansConnector
             return default;
         }
 
-        public string PrintInformation(IEnumerable<string> remotes)
+        public string PrintInformation(IEnumerable<string> remotes, bool printChannelMatrix, bool printConnectionMatrix)
         {
-            var poolSizes = string.Join(",", remotes
-                .Select(id => ChannelPools.TryGetValue(id, out var q) ? Blank(q.Count) : id == this.DispatcherId ? "X" : " "));
-            var inChannels = InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).ToDictionary(g => g.Key);
-            var chListeners = string.Join(",", remotes
-                .Select(id => inChannels.TryGetValue(id, out var g) ? Blank(g.Count()) : id == this.DispatcherId ? "X" : " "));
-            return $"ChOut=[{poolSizes}] ChIn=[{chListeners}] ChW={Blank(OutChannelWaiters.Count)} ConnReq={Blank(ConnectRequests.Count)} "
-                + $"acceptQ={Blank(AcceptQueue.Count)} acceptW={Blank(AcceptWaiters.Count)} outConn={Blank(OutConnections.Count)} inConn={Blank(InConnections.Count)}";
+            string inCh;
+            string outCh;
+            string inConn;
+            string outConn;
+
+            if (printChannelMatrix)
+            {
+                var outList = string.Join(",", remotes
+                    .Select(id => ChannelPools.TryGetValue(id, out var q) ? Blank(q.Count) : id == this.DispatcherId ? "X" : " "));
+                var inChannels = InChannelListeners.Values.Where(c => c.DispatcherId != null).GroupBy(c => c.DispatcherId).ToDictionary(g => g.Key);
+                var inList = string.Join(",", remotes
+                    .Select(id => inChannels.TryGetValue(id, out var g) ? Blank(g.Count()) : id == this.DispatcherId ? "X" : " "));
+                outCh = $"[{outList}]";
+                inCh = $"[{inList}]";
+            }
+            else
+            {
+                outCh = Blank(ChannelPools.Sum(q => q.Value.Count));
+                inCh = Blank(InChannelListeners.Values.Where(c => c.DispatcherId != null).Count());
+            }
+
+            if (printConnectionMatrix)
+            {
+                var inList = string.Join(",", remotes
+                    .Select(id => id == this.DispatcherId ? "X" : Blank(InConnections.Values.Count(c => c.OutChannel?.DispatcherId == id))));
+                var outList = string.Join(",", remotes
+                    .Select(id => id == this.DispatcherId ? "X" : Blank(OutConnections.Values.Count(c => c.OutChannel?.DispatcherId == id))));
+                inConn = $"[{inList}]";
+                outConn = $"[{outList}]";
+            }
+            else
+            {
+                inConn = Blank(InConnections.Count);
+                outConn = Blank(OutConnections.Count);
+            }
+
+            var mWaiters = string.Join(",", this.OutChannelWaiters.SelectMany(w => SingletonEnum(w.WaitsForMachine)).Distinct().OrderBy(s => s));
+
+            return $"OutCh={outCh} InCh={inCh} OutConn={outConn} InConn={inConn} "
+                + $"ConnReq={Blank(ConnectRequests.Count)} AcceptQ={Blank(AcceptQueue.Count)} AcceptW={Blank(AcceptWaiters.Count)} ChW={Blank(OutChannelWaiters.Count)} {mWaiters}";
 
             string Blank(int x) => x == 0 ? " " : x.ToString();
         }
 
         public string PrintInformation()
         {
-            return this.PrintInformation(this.Remotes);
+            return this.PrintInformation(this.Remotes, true, false);
         }
 
         public override string ToString()

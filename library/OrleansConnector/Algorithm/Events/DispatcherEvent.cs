@@ -14,6 +14,9 @@ namespace OrleansConnector.Algorithm
 
         public virtual bool TimedOut => false;
 
+        public virtual string WaitsForMachine => null;
+        public virtual string WaitsForDispatcher => null;
+
         public virtual void HandleTimeout(Dispatcher dispatcher) 
         {
         }
