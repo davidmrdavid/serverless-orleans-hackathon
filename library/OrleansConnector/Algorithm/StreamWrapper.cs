@@ -36,6 +36,7 @@ namespace OrleansConnector.Algorithm
 
                 dispatcher.Worker.Submit(new ChannelClosedEvent()
                 {
+                    Reason = "StreamWrapper.OnFailed",
                     ChannelId = channel.ChannelId,
                     DispatcherId = channel.DispatcherId,
                     Channel = channel,
@@ -51,6 +52,7 @@ namespace OrleansConnector.Algorithm
 
                 dispatcher.Worker.Submit(new ChannelClosedEvent()
                 {
+                    Reason = "StreamWrapper.OnClosed",
                     ChannelId = channel.ChannelId,
                     DispatcherId = channel.DispatcherId,
                     Channel = channel,

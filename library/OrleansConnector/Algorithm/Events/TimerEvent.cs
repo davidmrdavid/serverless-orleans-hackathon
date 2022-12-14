@@ -91,18 +91,25 @@ namespace OrleansConnector.Algorithm
             int knownRemotes = dispatcher.ChannelPools.Count;
             int couponCollectorEx = (int)Math.Round(4 * (knownRemotes + 4) * Math.Log(knownRemotes + 4));
             int numRequests = Math.Max(couponCollectorEx, 10);
-   
+
+            // issue all the broadcasts on the thread pool
+            var _ = Task.Run(() => this.BroadcastContactRequests(dispatcher, numRequests));
+        }
+
+        async Task BroadcastContactRequests(Dispatcher dispatcher, int numRequests)
+        {
             for (int i = 0; i < numRequests; i++)
             {
-                MakeContactAsync(dispatcher);            
+                await MakeContactAsync(dispatcher);
             }
 
             dispatcher.Logger.LogDebug("{dispatcher} sent {numRequests} contact requests", dispatcher, numRequests);
         }
 
-        bool MakeContactAsync(Dispatcher dispatcher)
+        async Task<bool> MakeContactAsync(Dispatcher dispatcher)
         {
             Guid channelId = Guid.NewGuid(); // the unique id for this channel
+                                             
             try
             {
                 dispatcher.Logger.LogTrace("{dispatcher} {channelId} sending contact request", dispatcher, channelId);
@@ -116,8 +123,22 @@ namespace OrleansConnector.Algorithm
 
                 // Wait for the response stream and process it asynchronously
                 var responseStream = dispatcher.HttpClient.GetStreamAsync(uri, dispatcher.ShutdownToken);
-                var _ = Task.Run(() => InChannel.ReceiveAsync(channelId, dispatcher, responseStream));
-                return true;
+                bool keepChannelOpen = await InChannel.ReceiveAsync(channelId, dispatcher, responseStream);
+                if (!keepChannelOpen)
+                {
+                    responseStream.Dispose();
+                }
+                return keepChannelOpen;
+            }
+            catch (TaskCanceledException)
+            {
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} contact request timed out", dispatcher, channelId);
+                return false;
+            }
+            catch (TimeoutException)
+            {
+                dispatcher.Logger.LogTrace("{dispatcher} {channelId} contact request timed out", dispatcher, channelId);
+                return false;
             }
             catch (Exception exception)
             {

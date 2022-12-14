@@ -31,7 +31,7 @@ namespace OrleansConnector
         public string ShortId { get; }
         internal byte[] DispatcherIdBytes { get; }
         public Uri FunctionAddress { get; }
-        public HttpClient HttpClient { get; }
+        internal HttpClient HttpClient { get; }
 
         // channels
         internal SortedDictionary<string, Queue<OutChannel>> ChannelPools { get; set; }
@@ -55,6 +55,8 @@ namespace OrleansConnector
 
         public bool ShutdownImminent { get; set; } // if true, we are no longer initiating new connection. Used to prepare for shutdown.
 
+        internal static TimeSpan ContactTimeout = TimeSpan.FromSeconds(5);
+
         public Dispatcher(Uri FunctionAddress, string dispatcherIdPrefix, string dispatcherIdSuffix, ILogger logger)
         {
             Logger = logger;
@@ -65,6 +67,7 @@ namespace OrleansConnector
             DispatcherIdBytes = GetBytes(DispatcherId);
             HttpClient = new HttpClient();
             HttpClient.DefaultRequestHeaders.Add("DispatcherId", DispatcherId);
+            HttpClient.Timeout = ContactTimeout;
             ChannelPools = new SortedDictionary<string, Queue<OutChannel>>();
             InChannelListeners = new ConcurrentDictionary<Guid, InChannel>();
             OutChannelWaiters = new List<DispatcherEvent>();
